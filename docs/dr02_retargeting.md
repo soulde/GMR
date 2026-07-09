@@ -115,6 +115,27 @@ python scripts/vis_dr02_retargeted_motion.py \
   --no_viewer
 ```
 
+## PD / Dynamic Replay
+
+The kinematic replay writes `data.qpos` directly. To check actuator position tracking with MuJoCo dynamics, run:
+
+```bash
+python scripts/vis_dr02_pd_replay.py \
+  --motion retargeting_data/dr02/test_walk.pkl \
+  --xml assets/robots/dr02/dr02.xml \
+  --root_mode kinematic
+```
+
+This keeps the floating base on the retargeted root trajectory, sends the 21 joint targets through `data.ctrl`, and advances the simulator with `mujoco.mj_step`. For a harsher check, let the floating base move dynamically:
+
+```bash
+python scripts/vis_dr02_pd_replay.py \
+  --motion retargeting_data/dr02/test_walk.pkl \
+  --xml assets/robots/dr02/dr02.xml \
+  --root_mode free \
+  --reset_each_loop
+```
+
 ## Common Issues
 
 If `python` is not available, use the Python executable from your GMR environment, for example `python3` or `.venv/bin/python`.

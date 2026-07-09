@@ -1,0 +1,16 @@
+foot_min_height_fail: -0.03
+foot_min_height_warn: -0.01
+support_xy_speed_warn: 0.15
+support_xy_speed_fail: 0.20
+joint_limit_warn_ratio: 0.01
+joint_limit_fail_ratio: 0.10
+flight_ratio_fail: 0.25
+flight_ratio_warn: 0.10
+pd_speed_smoke: 0.25
+pd_min_survival_time: 2.0
+pd_max_time_smoke: 2.0
+pd_disable_arm_torques: true
+contact_height_threshold: 0.04
+contact_xy_speed_threshold: 0.20
+stand_time: 1.0
+blend_time: 1.0

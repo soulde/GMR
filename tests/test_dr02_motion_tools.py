@@ -1,4 +1,5 @@
 import pickle
+import csv
 
 import numpy as np
 
@@ -43,3 +44,48 @@ def test_dr02_motion_tools_fake_motion(tmp_path):
     for value in dataset.values():
         if isinstance(value, np.ndarray) and value.dtype != object:
             assert np.all(np.isfinite(value))
+
+
+def test_dr02_batch_quality_classification_handles_missing_contacts(tmp_path):
+    from scripts.batch_dr02_retarget_pipeline import classify_quality, load_config
+
+    quality_dir = tmp_path / "quality"
+    quality_dir.mkdir()
+
+    metrics_path = quality_dir / "metrics.csv"
+    with metrics_path.open("w", newline="") as f:
+        writer = csv.DictWriter(
+            f,
+            fieldnames=[
+                "left_foot_height",
+                "right_foot_height",
+                "left_foot_xy_speed",
+                "right_foot_xy_speed",
+                "left_contact",
+                "right_contact",
+            ],
+        )
+        writer.writeheader()
+        for _ in range(3):
+            writer.writerow(
+                {
+                    "left_foot_height": "0.05",
+                    "right_foot_height": "0.05",
+                    "left_foot_xy_speed": "0.0",
+                    "right_foot_xy_speed": "0.0",
+                    "left_contact": "0",
+                    "right_contact": "0",
+                }
+            )
+
+    joint_path = quality_dir / "joint_range.csv"
+    with joint_path.open("w", newline="") as f:
+        writer = csv.DictWriter(f, fieldnames=["violation_ratio"])
+        writer.writeheader()
+        writer.writerow({"violation_ratio": "0.0"})
+
+    status, values = classify_quality(quality_dir, load_config(None))
+
+    assert status == "FAIL"
+    assert values["left_support_max_xy_vel"] == np.inf
+    assert values["right_support_max_xy_vel"] == np.inf

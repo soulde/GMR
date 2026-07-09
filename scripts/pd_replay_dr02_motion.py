@@ -80,6 +80,11 @@ def main():
     parser.add_argument("--torque-limit-scale", type=float, default=1.0)
     parser.add_argument("--start-frame", type=int, default=0)
     parser.add_argument("--max-time", type=float, default=None)
+    parser.add_argument(
+        "--disable-arm-torques",
+        action="store_true",
+        help="Set shoulder/elbow torque commands to zero to isolate leg/base diagnostics.",
+    )
     parser.add_argument("--disable-viewer", action="store_true")
     args = parser.parse_args()
 
@@ -105,6 +110,10 @@ def main():
 
     kp = model.actuator_gainprm[:, 0] * args.kp_scale
     kd = 2.0 * np.sqrt(np.maximum(kp, 1e-6)) * args.kd_scale
+    arm_mask = np.asarray(
+        [("shoulder" in name or "elbow" in name) for name in info["names"]],
+        dtype=bool,
+    )
     torque_ranges = info["torque_ranges"] * args.torque_limit_scale
     torque_limit = np.where(info["torque_limited"], np.maximum(np.abs(torque_ranges).max(axis=1), 1e-6), np.inf)
 
@@ -140,6 +149,8 @@ def main():
             q_ref = joint_pos[frame]
             dq_ref = joint_vel[frame]
             tau_cmd = kp * (q_ref - q) + kd * (dq_ref - dq)
+            if args.disable_arm_torques:
+                tau_cmd[arm_mask] = 0.0
             tau_applied = np.clip(tau_cmd, -torque_limit, torque_limit)
             data.qfrc_applied[:] = 0.0
             data.qfrc_applied[6:] = tau_applied

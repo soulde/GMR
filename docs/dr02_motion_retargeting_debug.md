@@ -69,6 +69,17 @@ tau = kp * (q_ref - q) + kd * (dq_ref - dq)
 
 It logs fall time, base height, roll/pitch, joint tracking error, torque saturation, contact force, and reference foot slip.
 
+For first-pass leg/base diagnosis, disable arm torques so passive arm gravity holding does not dominate the saturation report:
+
+```bash
+python scripts/pd_replay_dr02_motion.py \
+  --motion retargeting_data/dr02/test_walk_preprocessed.pkl \
+  --xml assets/robots/dr02/dr02.xml \
+  --out reports/dr02_pd_replay/test_walk_no_arms \
+  --speed 0.5 \
+  --disable-arm-torques
+```
+
 Try:
 
 ```bash
@@ -95,6 +106,81 @@ Then validate:
 python scripts/check_dr02_motion_dataset.py \
   --dataset retargeting_data/dr02/test_walk_dataset.npz
 ```
+
+## Batch Pipeline
+
+For large AMASS batches, use the fixed DR02 pipeline entry instead of running each script by hand:
+
+```bash
+python scripts/batch_dr02_retarget_pipeline.py \
+  --input-dir data/AMASS_SMPLX/KIT \
+  --output-dir retargeting_data/dr02 \
+  --reports-dir reports/dr02_batch \
+  --run-pd-smoke \
+  --jobs 1
+```
+
+The default quality thresholds live in:
+
+```text
+configs/dr02_motion_quality.yaml
+```
+
+The batch script writes resumable outputs:
+
+```text
+retargeting_data/dr02/raw/
+retargeting_data/dr02/preprocessed/
+retargeting_data/dr02/dataset/
+reports/dr02_batch/motion_quality/
+reports/dr02_batch/pd_replay/
+reports/dr02_batch/batch_summary.csv
+```
+
+`batch_summary.csv` is the main file for filtering clips. It includes:
+
+```text
+quality_status
+pd_status
+dataset_status
+final_status
+joint_limit_max_violation
+left_foot_min_height
+right_foot_min_height
+left_support_max_xy_vel
+right_support_max_xy_vel
+flight_ratio
+pd_fall_time
+pd_max_torque_ratio
+```
+
+Recommended first pass:
+
+```bash
+python scripts/batch_dr02_retarget_pipeline.py \
+  --input-dir data/AMASS_SMPLX/KIT \
+  --output-dir retargeting_data/dr02 \
+  --reports-dir reports/dr02_batch \
+  --limit 20 \
+  --run-pd-smoke \
+  --jobs 1
+```
+
+Then inspect `reports/dr02_batch/batch_summary.csv`. Use `PASS` clips first for imitation / motion tracking. Keep `WARN` clips for later review. Drop or repair `FAIL` clips before training.
+
+The script skips existing outputs by default, so interrupted batch runs can be resumed. Use `--force` only when retargeting settings, quality thresholds, or preprocessing settings changed and outputs must be regenerated.
+
+For faster non-PD data generation:
+
+```bash
+python scripts/batch_dr02_retarget_pipeline.py \
+  --input-dir data/AMASS_SMPLX/KIT \
+  --output-dir retargeting_data/dr02 \
+  --reports-dir reports/dr02_batch \
+  --jobs 4
+```
+
+Keep `--run-pd-smoke` at `--jobs 1` or a small job count first. MuJoCo simulation and SMPL-X loading are CPU-heavy, and parallel viewer-free PD smoke tests can make failures harder to read.
 
 ## What To Fix Where
 

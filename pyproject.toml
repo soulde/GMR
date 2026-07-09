@@ -25,3 +25,8 @@ dependencies = [
 
 [tool.uv.sources]
 smplx = { git = "https://github.com/vchoutas/smplx" }
+
+[dependency-groups]
+dev = [
+    "pytest>=9.1.1",
+]

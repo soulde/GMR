@@ -20,7 +20,7 @@ PD replay is a diagnostic tool. It is not the final controller. A motion can loo
 ```bash
 python scripts/check_dr02_motion_quality.py \
   --motion retargeting_data/dr02/test_walk.pkl \
-  --xml assets/robots/dr02/dr02.xml \
+  --xml assets/robots/dr02/mjcf/dr02_pos.xml \
   --out reports/dr02_motion_quality/test_walk
 ```
 
@@ -43,7 +43,7 @@ Read `summary.txt` first. Joint limit warnings above 1 percent are worth inspect
 ```bash
 python scripts/preprocess_dr02_motion.py \
   --motion retargeting_data/dr02/test_walk.pkl \
-  --xml assets/robots/dr02/dr02.xml \
+  --xml assets/robots/dr02/mjcf/dr02_pos.xml \
   --out retargeting_data/dr02/test_walk_preprocessed.pkl \
   --stand-time 1.0 \
   --blend-time 1.0
@@ -56,7 +56,7 @@ Use `--auto-start-frame` to choose a lower-velocity, more stable start frame bas
 ```bash
 python scripts/pd_replay_dr02_motion.py \
   --motion retargeting_data/dr02/test_walk_preprocessed.pkl \
-  --xml assets/robots/dr02/dr02.xml \
+  --xml assets/robots/dr02/mjcf/dr02_pos.xml \
   --out reports/dr02_pd_replay/test_walk \
   --speed 0.5
 ```
@@ -84,7 +84,7 @@ If 0.25x fails immediately, inspect mapping, limits, foot height, and initial st
 ```bash
 python scripts/preprocess_dr02_motion.py \
   --motion retargeting_data/dr02/test_walk.pkl \
-  --xml assets/robots/dr02/dr02.xml \
+  --xml assets/robots/dr02/mjcf/dr02_pos.xml \
   --out retargeting_data/dr02/test_walk_dataset.npz \
   --export-dataset
 ```

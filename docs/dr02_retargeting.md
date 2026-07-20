@@ -1,24 +1,25 @@
 # DR02 Retargeting
 
-DR02 assets are copied from `soulde/mjlabplusplus` into:
+The DR02-Pro geometry comes from the complete `robot_lab` description. The
+MJCF actuator gains come from the finetuned `soulde_robot_zoo` model.
 
 ```text
 assets/robots/dr02/
-├── dr02.xml
-├── dr02_std.urdf
-└── assets/
+├── mjcf/dr02_pos.xml
+├── meshes/
+└── urdf/dr02_pro.urdf
 ```
 
-The MJCF mesh directory is set to `assets`, relative to `assets/robots/dr02/dr02.xml`.
+The MJCF mesh directory is set to `../meshes`, relative to `assets/robots/dr02/mjcf/dr02_pos.xml`.
 
 ## Install
 
-Create and activate the GMR environment as described by the upstream project:
+Create the locked GMR environment with a user-specific cache:
 
 ```bash
-conda create -n gmr python=3.10 -y
-conda activate gmr
-pip install -e .
+TMPDIR=/home/$USER/tmp \
+UV_CACHE_DIR=/home/$USER/tmp/uv-cache \
+uv sync --frozen --group dev
 ```
 
 If rendering has C++ runtime issues on Ubuntu:
@@ -64,12 +65,13 @@ python scripts/inspect_dr02.py
 Expected model dimensions:
 
 ```text
-nq = 28
-nv = 27
-nu = 21
+nq = 36
+nv = 35
+nu = 29
 ```
 
-The script also prints MuJoCo body, joint, actuator, site, and geom names. The first DR02 retargeting config uses `base_link`, `body`, `left_knee_link`, `right_knee_link`, `left_ankle_x_link`, and `right_ankle_x_link`.
+The script also prints MuJoCo body, joint, actuator, site, and geom names. The
+IK config tracks the root, torso, knees, feet, shoulders, elbows, and wrists.
 
 ## Retarget One Motion
 
@@ -80,8 +82,6 @@ python scripts/smplx_to_robot.py \
   --save_path retargeting_data/dr02/test_walk.pkl \
   --rate_limit
 ```
-
-The first DR02 IK config intentionally tracks only pelvis/root, torso, knees, and feet. This keeps the first pass stable before adding low-weight arm constraints.
 
 On a headless machine without `DISPLAY`, use:
 
@@ -101,7 +101,7 @@ Use the DR02 kinematic replay script:
 ```bash
 python scripts/vis_dr02_retargeted_motion.py \
   --motion retargeting_data/dr02/test_walk.pkl \
-  --xml assets/robots/dr02/dr02.xml
+  --xml assets/robots/dr02/mjcf/dr02_pos.xml
 ```
 
 The replay script directly writes `qpos[:3]`, `qpos[3:7]`, and `qpos[7:]`, then calls `mujoco.mj_forward`.
@@ -111,7 +111,7 @@ On a headless machine:
 ```bash
 python scripts/vis_dr02_retargeted_motion.py \
   --motion retargeting_data/dr02/test_walk.pkl \
-  --xml assets/robots/dr02/dr02.xml \
+  --xml assets/robots/dr02/mjcf/dr02_pos.xml \
   --no_viewer
 ```
 
@@ -122,16 +122,16 @@ The kinematic replay writes `data.qpos` directly. To check actuator position tra
 ```bash
 python scripts/vis_dr02_pd_replay.py \
   --motion retargeting_data/dr02/test_walk.pkl \
-  --xml assets/robots/dr02/dr02.xml \
+  --xml assets/robots/dr02/mjcf/dr02_pos.xml \
   --root_mode kinematic
 ```
 
-This keeps the floating base on the retargeted root trajectory, sends the 21 joint targets through `data.ctrl`, and advances the simulator with `mujoco.mj_step`. For a harsher check, let the floating base move dynamically:
+This keeps the floating base on the retargeted root trajectory, sends the 29 joint targets through `data.ctrl`, and advances the simulator with `mujoco.mj_step`. For a harsher check, let the floating base move dynamically:
 
 ```bash
 python scripts/vis_dr02_pd_replay.py \
   --motion retargeting_data/dr02/test_walk.pkl \
-  --xml assets/robots/dr02/dr02.xml \
+  --xml assets/robots/dr02/mjcf/dr02_pos.xml \
   --root_mode free \
   --reset_each_loop
 ```
@@ -140,10 +140,10 @@ python scripts/vis_dr02_pd_replay.py \
 
 If `python` is not available, use the Python executable from your GMR environment, for example `python3` or `.venv/bin/python`.
 
-If mesh loading fails, verify that `assets/robots/dr02/dr02.xml` contains:
+If mesh loading fails, verify that `assets/robots/dr02/mjcf/dr02_pos.xml` contains:
 
 ```xml
-<compiler angle="radian" meshdir="assets" />
+<compiler angle="radian" meshdir="../meshes/" />
 ```
 
 If the robot is rotated, mirrored, or facing the wrong way, adjust the quaternion offsets in `general_motion_retargeting/ik_configs/smplx_to_dr02.json`.

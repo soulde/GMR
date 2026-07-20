@@ -2,7 +2,10 @@ import mujoco
 from pathlib import Path
 
 
-xml_path = Path("assets/robots/dr02/dr02.xml")
+from general_motion_retargeting.params import ROBOT_XML_DICT
+
+
+xml_path = ROBOT_XML_DICT["dr02"]
 model = mujoco.MjModel.from_xml_path(str(xml_path))
 
 print("nq =", model.nq)

@@ -54,8 +54,8 @@ def main():
         "root_quat": (T, 4),
         "root_lin_vel": (T, 3),
         "root_ang_vel": (T, 3),
-        "joint_pos": (T, 21),
-        "joint_vel": (T, 21),
+        "joint_pos": (T, 29),
+        "joint_vel": (T, 29),
         "left_foot_pos": (T, 3),
         "right_foot_pos": (T, 3),
         "left_foot_vel": (T, 3),
@@ -91,8 +91,8 @@ def main():
         status_line("ERROR", "phase is outside [0, 1]")
         errors += 1
 
-    if data["joint_names"].shape[0] != 21:
-        status_line("ERROR", f"joint_names length {data['joint_names'].shape[0]}, expected 21")
+    if data["joint_names"].shape[0] != 29:
+        status_line("ERROR", f"joint_names length {data['joint_names'].shape[0]}, expected 29")
         errors += 1
 
     if np.max(np.abs(data["vx_ref"])) > 5.0:

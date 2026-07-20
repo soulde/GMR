@@ -119,7 +119,7 @@ def write_summary(path, metrics, joint_rows, left_contact, right_contact, height
 def main():
     parser = argparse.ArgumentParser()
     parser.add_argument("--motion", type=Path, required=True)
-    parser.add_argument("--xml", type=Path, default=Path("assets/robots/dr02/dr02.xml"))
+    parser.add_argument("--xml", type=Path, default=Path("assets/robots/dr02/mjcf/dr02_pos.xml"))
     parser.add_argument("--out", type=Path, required=True)
     parser.add_argument("--contact-height-threshold", type=float, default=0.04)
     parser.add_argument("--contact-xy-speed-threshold", type=float, default=0.20)

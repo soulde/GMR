@@ -30,7 +30,7 @@ def _load_motion(path):
 def main():
     parser = argparse.ArgumentParser()
     parser.add_argument("--motion", type=Path, required=True)
-    parser.add_argument("--xml", type=Path, default=Path("assets/robots/dr02/dr02.xml"))
+    parser.add_argument("--xml", type=Path, default=Path("assets/robots/dr02/mjcf/dr02_pos.xml"))
     parser.add_argument("--fps", type=float, default=None)
     parser.add_argument("--speed", type=float, default=1.0)
     parser.add_argument("--no_viewer", action="store_true")

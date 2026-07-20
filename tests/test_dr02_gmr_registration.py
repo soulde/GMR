@@ -15,6 +15,8 @@ def test_dr02_mujoco_model_loads():
     assert model.nq == 36
     assert model.nv == 35
     assert model.nu == 29
+    assert mujoco.mj_name2id(model, mujoco.mjtObj.mjOBJ_SITE, "left_foot") >= 0
+    assert mujoco.mj_name2id(model, mujoco.mjtObj.mjOBJ_SITE, "right_foot") >= 0
 
     joint_names = {
         mujoco.mj_id2name(model, mujoco.mjtObj.mjOBJ_JOINT, joint_id)

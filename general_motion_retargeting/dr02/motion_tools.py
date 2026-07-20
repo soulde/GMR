@@ -239,8 +239,9 @@ def joint_limit_report(model, joint_pos):
         q_min, q_max = info["ranges"][i]
         low_margin = q_ref_min[i] - q_min
         high_margin = q_max - q_ref_max[i]
-        below = joint_pos[:, i] < q_min
-        above = joint_pos[:, i] > q_max
+        tolerance = 1e-8
+        below = joint_pos[:, i] < q_min - tolerance
+        above = joint_pos[:, i] > q_max + tolerance
         violation_count = int(np.count_nonzero(below | above))
         violation_ratio = violation_count / len(joint_pos)
         rows.append(

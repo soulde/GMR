@@ -39,7 +39,7 @@
     "left_knee_link": [
       "left_knee",
       10,
-      5,
+      0,
       [
         0,
         0,
@@ -55,7 +55,7 @@
     "right_knee_link": [
       "right_knee",
       10,
-      5,
+      0,
       [
         0,
         0,
@@ -71,7 +71,7 @@
     "left_ankle_x_link": [
       "left_foot",
       100,
-      20,
+      0,
       [
         0,
         0,
@@ -87,7 +87,7 @@
     "right_ankle_x_link": [
       "right_foot",
       100,
-      20,
+      0,
       [
         0,
         0,
@@ -103,7 +103,7 @@
     "body": [
       "spine3",
       10,
-      5,
+      0,
       [
         0,
         0,
@@ -118,8 +118,8 @@
     ],
     "left_shoulder_z_link": [
       "left_shoulder",
-      0,
       10,
+      0,
       [
         0,
         0,
@@ -134,8 +134,8 @@
     ],
     "left_elbow_link": [
       "left_elbow",
-      0,
       10,
+      0,
       [
         0,
         0,
@@ -150,8 +150,8 @@
     ],
     "left_wrist_x_link": [
       "left_wrist",
-      0,
       10,
+      0,
       [
         0,
         0,
@@ -166,8 +166,8 @@
     ],
     "right_shoulder_z_link": [
       "right_shoulder",
-      0,
       10,
+      0,
       [
         0,
         0,
@@ -182,8 +182,8 @@
     ],
     "right_elbow_link": [
       "right_elbow",
-      0,
       10,
+      0,
       [
         0,
         0,
@@ -198,8 +198,8 @@
     ],
     "right_wrist_x_link": [
       "right_wrist",
-      0,
       10,
+      0,
       [
         0,
         0,
@@ -233,7 +233,7 @@
     "left_knee_link": [
       "left_knee",
       20,
-      5,
+      0,
       [
         0,
         0,
@@ -249,7 +249,7 @@
     "right_knee_link": [
       "right_knee",
       20,
-      5,
+      0,
       [
         0,
         0,
@@ -265,7 +265,7 @@
     "left_ankle_x_link": [
       "left_foot",
       100,
-      30,
+      0,
       [
         0,
         0,
@@ -281,7 +281,7 @@
     "right_ankle_x_link": [
       "right_foot",
       100,
-      30,
+      0,
       [
         0,
         0,
@@ -297,7 +297,7 @@
     "body": [
       "spine3",
       10,
-      2,
+      0,
       [
         0,
         0,
@@ -313,7 +313,7 @@
     "left_shoulder_z_link": [
       "left_shoulder",
       10,
-      5,
+      0,
       [
         0,
         0,
@@ -329,7 +329,7 @@
     "left_elbow_link": [
       "left_elbow",
       10,
-      5,
+      0,
       [
         0,
         0,
@@ -345,7 +345,7 @@
     "left_wrist_x_link": [
       "left_wrist",
       10,
-      5,
+      0,
       [
         0,
         0,
@@ -361,7 +361,7 @@
     "right_shoulder_z_link": [
       "right_shoulder",
       10,
-      5,
+      0,
       [
         0,
         0,
@@ -377,7 +377,7 @@
     "right_elbow_link": [
       "right_elbow",
       10,
-      5,
+      0,
       [
         0,
         0,
@@ -393,7 +393,7 @@
     "right_wrist_x_link": [
       "right_wrist",
       10,
-      5,
+      0,
       [
         0,
         0,

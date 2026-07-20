@@ -71,6 +71,12 @@ if __name__ == "__main__":
         help="Limit the rate of the retargeted robot motion to keep the same as the human motion.",
     )
 
+    parser.add_argument(
+        "--offset_to_ground",
+        action="store_true",
+        help="Align the lowest human foot target to the ground before solving IK.",
+    )
+
     args = parser.parse_args()
 
 
@@ -139,7 +145,7 @@ if __name__ == "__main__":
         smplx_data = smplx_data_frames[i]
 
         # retarget
-        qpos = retarget.retarget(smplx_data)
+        qpos = retarget.retarget(smplx_data, offset_to_ground=args.offset_to_ground)
 
         # visualize
         if robot_motion_viewer is not None:

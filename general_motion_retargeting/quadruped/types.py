@@ -39,3 +39,21 @@ class CanonicalQuadrupedMotion:
     foot_pos_root: np.ndarray
     leg_order: tuple[str, str, str, str]
     loop_mode: str
+
+
+@dataclass(frozen=True)
+class FrameDiagnostics:
+    frame_index: int
+    iterations: int
+    initial_error: float
+    final_error: float
+    reached_max_iterations: bool
+    joint_limit_hits: tuple[str, ...]
+
+
+@dataclass(frozen=True)
+class QuadrupedRetargetResult:
+    qpos: np.ndarray
+    fps: float
+    loop_mode: str
+    diagnostics: tuple[FrameDiagnostics, ...]

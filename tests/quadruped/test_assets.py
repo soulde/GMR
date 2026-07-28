@@ -47,3 +47,17 @@ def test_go2_mjcf_has_free_root_twelve_hinges_and_foot_sites():
             )
             >= 0
         )
+
+
+def test_go2_scene_has_visual_meshes_floor_and_light():
+    model = mujoco.MjModel.from_xml_path(
+        str(ROOT / "assets/quadrupeds/unitree_go2/scene.xml")
+    )
+
+    assert model.nmesh > 0
+    assert model.nlight > 0
+    floor_id = mujoco.mj_name2id(
+        model, mujoco.mjtObj.mjOBJ_GEOM, "floor"
+    )
+    assert floor_id >= 0
+    assert model.geom_type[floor_id] == mujoco.mjtGeom.mjGEOM_PLANE

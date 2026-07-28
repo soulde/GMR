@@ -24,7 +24,7 @@ ROBOT_XML_DICT = {
     "pal_talos": ASSET_ROOT / "pal_talos" / "talos.xml",
     "fourier_gr3": ASSET_ROOT / "fourier_gr3v2_1_1" / "mjcf" / "gr3v2_1_1_dummy_hand.xml",
     "dr02": ASSET_ROOT / "robots" / "dr02" / "dr02.xml",
-    "unitree_go2": ASSET_ROOT / "quadrupeds" / "unitree_go2" / "go2.xml",
+    "unitree_go2": ASSET_ROOT / "quadrupeds" / "unitree_go2" / "scene.xml",
 }
 
 IK_CONFIG_DICT = {

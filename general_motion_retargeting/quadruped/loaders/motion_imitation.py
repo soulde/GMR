@@ -11,7 +11,7 @@ def load_motion_imitation(
     path: str | Path,
     joint_names: tuple[str, ...],
     quaternion_order: str,
-    root_orientation_mode: str = "absolute",
+    root_frame_rotation_wxyz: tuple[float, float, float, float] | None = None,
 ) -> JointSpaceMotion:
     with Path(path).open() as stream:
         payload = json.load(stream)
@@ -38,15 +38,13 @@ def load_motion_imitation(
         raise ValueError("root quaternion has zero norm")
     root_rot = root_rot / norms
 
-    if root_orientation_mode == "relative_first_frame":
+    if root_frame_rotation_wxyz is not None:
         rotations = Rotation.from_quat(root_rot, scalar_first=True)
-        root_rot = (rotations[0].inv() * rotations).as_quat(
-            scalar_first=True
+        root_frame_rotation = Rotation.from_quat(
+            root_frame_rotation_wxyz, scalar_first=True
         )
-    elif root_orientation_mode != "absolute":
-        raise ValueError(
-            "root_orientation_mode must be 'absolute' or "
-            f"'relative_first_frame', got {root_orientation_mode!r}"
+        root_rot = (root_frame_rotation.inv() * rotations).as_quat(
+            scalar_first=True
         )
 
     return JointSpaceMotion(

@@ -106,7 +106,7 @@ def run(
         motion_file,
         source_spec.motion_joint_order,
         source_spec.quaternion_order,
-        source_spec.root_orientation_mode,
+        source_spec.root_frame_rotation_wxyz,
     )
     retargeter = create_retargeter(
         model_type=model_type,

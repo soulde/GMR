@@ -51,24 +51,25 @@ The adapter must transform root translation and orientation into the internal
 contract. A quaternion reorder alone is insufficient when source and target
 root frames differ.
 
-For robot-to-robot data whose first root orientation contains a fixed source
-model frame, use an explicit source configuration such as:
+When the source motion uses the native root frame of a differently oriented
+source model, declare that model's fixed root-frame rotation:
 
 ```yaml
 motion:
-  quaternion_order: wxyz
-  root_orientation_mode: relative_first_frame
+  quaternion_order: xyzw
+  root_frame_rotation: [0.5, 0.5, 0.5, 0.5]
 ```
 
-`relative_first_frame` computes:
+The quaternion uses the declared `quaternion_order`. The adapter computes:
 
 ```text
-R_gmr(t) = inverse(R_source(0)) * R_source(t)
+R_gmr(t) = inverse(R_source_frame) * R_source(t)
 ```
 
-This makes the first root orientation identity while preserving subsequent
-orientation changes in the initial source-root frame. Use `absolute` only
-when the source already satisfies the GMR world and root-frame contract.
+This is a static model-level basis correction. It preserves the motion's
+absolute orientation and does not depend on the first data frame. Omit
+`root_frame_rotation` when the source motion and source MJCF already use the
+GMR world and root-frame contract.
 
 If the source world axes differ from GMR, apply a declared basis transform to
 both positions and rotations. Do not repair this later in the viewer or at
@@ -120,10 +121,12 @@ behavior declared by the source loop mode.
 The vendored `dog_pace.txt` uses:
 
 - metres and radians
-- root quaternion order `wxyz`
-- a fixed initial Laikago root-frame orientation
+- PyBullet root quaternion order `xyzw`
+- the native Laikago URDF root-frame correction
 - motion joint order declared in `laikago.yaml`
 
-It therefore requires `root_orientation_mode: relative_first_frame`. Reading
-it as `xyzw` or transferring its absolute root quaternion directly produces
-an approximately 90-degree rolled Go2.
+The upstream Laikago adapter applies `Euler(pi/2, 0, pi/2)` because its URDF
+points along `+Z` with its belly toward `+Y`. The equivalent static quaternion
+is declared as `root_frame_rotation: [0.5, 0.5, 0.5, 0.5]`. Transferring the
+raw absolute root quaternion into our canonical Laikago MJCF without removing
+that model-level rotation produces an approximately 90-degree rolled Go2.

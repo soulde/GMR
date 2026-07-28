@@ -16,8 +16,10 @@ legs:
     joints: [RR_hip_joint, RR_thigh_joint, RR_calf_joint]
     foot_site: RR_foot_site
 motion:
-  quaternion_order: wxyz
-  root_orientation_mode: relative_first_frame
+  quaternion_order: xyzw
+  # Upstream Laikago URDF points along +Z with its belly toward +Y.
+  # Motion Imitation rotates it into a Z-up locomotion frame.
+  root_frame_rotation: [0.5, 0.5, 0.5, 0.5]
   joint_order:
     - FR_hip_joint
     - FR_thigh_joint

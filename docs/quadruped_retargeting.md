@@ -79,8 +79,8 @@ legs:
     joints: [RR_hip_joint, RR_thigh_joint, RR_calf_joint]
     foot_site: RR_foot_site
 motion:
-  quaternion_order: wxyz
-  root_orientation_mode: relative_first_frame
+  quaternion_order: xyzw
+  root_frame_rotation: [0.5, 0.5, 0.5, 0.5]
   joint_order: [...]
 reference_pose:
   FL_hip_joint: 0.0
@@ -100,9 +100,9 @@ A `motion_imitation` frame contains three root-position values, four root
 quaternion values, and the configured source joint values. `FrameDuration`
 defines FPS and `LoopMode` is preserved.
 
-`root_orientation_mode: relative_first_frame` removes a source model's fixed
-initial root-frame rotation before transfer. Use `absolute` only when source
-and target MJCFs already share the same root/world convention.
+Optional `root_frame_rotation` removes a fixed source-model basis rotation
+before transfer. It is independent of motion frames. Omit it when the source
+motion and source MJCF already share the GMR root/world convention.
 
 Source MuJoCo FK converts joint motion into foot positions relative to the
 source trunk. Morphology transfer scales the neutral stance and trajectory

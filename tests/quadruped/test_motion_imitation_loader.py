@@ -17,7 +17,7 @@ JOINTS = tuple(f"joint_{index}" for index in range(12))
 
 
 def test_load_motion_imitation_normalizes_to_wxyz():
-    motion = load_motion_imitation(FIXTURE, JOINTS, "wxyz")
+    motion = load_motion_imitation(FIXTURE, JOINTS, "xyzw")
 
     assert motion.fps == pytest.approx(50.0)
     assert motion.loop_mode == "Wrap"
@@ -53,16 +53,13 @@ def test_load_motion_imitation_converts_xyzw_quaternion(tmp_path):
     np.testing.assert_allclose(motion.root_rot[0], [1, 0, 0, 0])
 
 
-def test_load_dog_pace_aligns_source_root_to_first_frame():
+def test_load_dog_pace_applies_static_source_root_frame():
     motion = load_motion_imitation(
         DOG_PACE,
         JOINTS,
-        "wxyz",
-        "relative_first_frame",
+        "xyzw",
+        (0.5, 0.5, 0.5, 0.5),
     )
 
-    np.testing.assert_allclose(
-        motion.root_rot[0],
-        [1.0, 0.0, 0.0, 0.0],
-        atol=1e-7,
-    )
+    assert motion.root_rot[0, 0] > 0.99
+    assert np.linalg.norm(motion.root_rot[0, 1:]) < 0.06

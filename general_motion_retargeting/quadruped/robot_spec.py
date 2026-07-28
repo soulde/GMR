@@ -4,6 +4,7 @@ from types import MappingProxyType
 from typing import Mapping
 
 import mujoco
+import numpy as np
 import yaml
 
 
@@ -33,7 +34,7 @@ class QuadrupedRobotSpec:
     legs: Mapping[str, LegSpec]
     motion_joint_order: tuple[str, ...]
     quaternion_order: str
-    root_orientation_mode: str
+    root_frame_rotation_wxyz: tuple[float, float, float, float] | None
     reference_pose: Mapping[str, float]
     joint_mapping: Mapping[str, JointMapSpec]
 
@@ -130,14 +131,18 @@ def load_robot_spec(
         raise ValueError(
             f"unsupported quaternion order: {quaternion_order!r}"
         )
-    root_orientation_mode = str(
-        motion.get("root_orientation_mode", "absolute")
-    )
-    if root_orientation_mode not in ("absolute", "relative_first_frame"):
-        raise ValueError(
-            "root_orientation_mode must be 'absolute' or "
-            f"'relative_first_frame', got {root_orientation_mode!r}"
-        )
+    root_frame_rotation = motion.get("root_frame_rotation")
+    root_frame_rotation_wxyz = None
+    if root_frame_rotation is not None:
+        root_frame_rotation = np.asarray(root_frame_rotation, dtype=float)
+        if root_frame_rotation.shape != (4,):
+            raise ValueError("root_frame_rotation must contain four values")
+        if quaternion_order == "xyzw":
+            root_frame_rotation = root_frame_rotation[[3, 0, 1, 2]]
+        norm = np.linalg.norm(root_frame_rotation)
+        if not np.isfinite(norm) or norm <= 1e-12:
+            raise ValueError("root_frame_rotation must be a finite quaternion")
+        root_frame_rotation_wxyz = tuple(root_frame_rotation / norm)
 
     reference_pose = {
         str(name): float(value)
@@ -176,7 +181,7 @@ def load_robot_spec(
         legs=MappingProxyType(legs),
         motion_joint_order=motion_joint_order,
         quaternion_order=quaternion_order,
-        root_orientation_mode=root_orientation_mode,
+        root_frame_rotation_wxyz=root_frame_rotation_wxyz,
         reference_pose=MappingProxyType(reference_pose),
         joint_mapping=MappingProxyType(joint_mapping),
     )

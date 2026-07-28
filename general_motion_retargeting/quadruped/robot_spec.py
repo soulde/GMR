@@ -33,6 +33,7 @@ class QuadrupedRobotSpec:
     legs: Mapping[str, LegSpec]
     motion_joint_order: tuple[str, ...]
     quaternion_order: str
+    root_orientation_mode: str
     reference_pose: Mapping[str, float]
     joint_mapping: Mapping[str, JointMapSpec]
 
@@ -129,6 +130,14 @@ def load_robot_spec(
         raise ValueError(
             f"unsupported quaternion order: {quaternion_order!r}"
         )
+    root_orientation_mode = str(
+        motion.get("root_orientation_mode", "absolute")
+    )
+    if root_orientation_mode not in ("absolute", "relative_first_frame"):
+        raise ValueError(
+            "root_orientation_mode must be 'absolute' or "
+            f"'relative_first_frame', got {root_orientation_mode!r}"
+        )
 
     reference_pose = {
         str(name): float(value)
@@ -167,6 +176,7 @@ def load_robot_spec(
         legs=MappingProxyType(legs),
         motion_joint_order=motion_joint_order,
         quaternion_order=quaternion_order,
+        root_orientation_mode=root_orientation_mode,
         reference_pose=MappingProxyType(reference_pose),
         joint_mapping=MappingProxyType(joint_mapping),
     )

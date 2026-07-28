@@ -16,7 +16,8 @@ legs:
     joints: [RR_hip_joint, RR_thigh_joint, RR_calf_joint]
     foot_site: RR_foot_site
 motion:
-  quaternion_order: xyzw
+  quaternion_order: wxyz
+  root_orientation_mode: relative_first_frame
   joint_order:
     - FR_hip_joint
     - FR_thigh_joint

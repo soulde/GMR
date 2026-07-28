@@ -16,6 +16,8 @@ def test_load_laikago_spec_resolves_model_and_leg_order():
     assert spec.leg_order == ("FL", "FR", "RL", "RR")
     assert len(spec.motion_joint_order) == 12
     assert spec.model.nq == 19
+    assert spec.quaternion_order == "wxyz"
+    assert spec.root_orientation_mode == "relative_first_frame"
 
 
 def test_load_go2_spec_resolves_mapping():

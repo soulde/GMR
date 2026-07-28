@@ -1,0 +1,4 @@
+interface:
+  display_name: "Validate Modify Data"
+  short_description: "Check project datasets before changing them"
+  default_prompt: "Use $validate-modify-data to inspect this dataset, modify it safely if needed, and prove whether it is usable by the project."

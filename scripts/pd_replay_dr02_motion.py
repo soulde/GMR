@@ -6,8 +6,7 @@ import mujoco
 import numpy as np
 from scipy.spatial.transform import Rotation as R
 
-from general_motion_retargeting.dr02.motion_tools import (
-    FOOT_SITES,
+from general_motion_retargeting.utils.robot_motion import (
     compute_kinematic_metrics,
     ensure_dir,
     finite_difference,
@@ -16,6 +15,8 @@ from general_motion_retargeting.dr02.motion_tools import (
     plot_series,
     write_csv,
 )
+
+DR02_FOOT_SITES = {"left_foot": "left_foot", "right_foot": "right_foot"}
 
 
 def sample_reference(motion, sim_time, speed):
@@ -94,7 +95,7 @@ def main():
     data = mujoco.MjData(model)
     motion = load_motion(args.motion)
     info = model_joint_info(model)
-    metrics_ref = compute_kinematic_metrics(model, motion)
+    metrics_ref = compute_kinematic_metrics(model, motion, DR02_FOOT_SITES)
 
     joint_pos = motion["joint_pos"]
     joint_vel = finite_difference(joint_pos, motion["fps"]) * args.speed
@@ -118,8 +119,8 @@ def main():
     torque_limit = np.where(info["torque_limited"], np.maximum(np.abs(torque_ranges).max(axis=1), 1e-6), np.inf)
 
     site_ids = {
-        "left": mujoco.mj_name2id(model, mujoco.mjtObj.mjOBJ_SITE, FOOT_SITES["left"]),
-        "right": mujoco.mj_name2id(model, mujoco.mjtObj.mjOBJ_SITE, FOOT_SITES["right"]),
+        "left": mujoco.mj_name2id(model, mujoco.mjtObj.mjOBJ_SITE, DR02_FOOT_SITES["left_foot"]),
+        "right": mujoco.mj_name2id(model, mujoco.mjtObj.mjOBJ_SITE, DR02_FOOT_SITES["right_foot"]),
     }
 
     duration = (len(joint_pos) - start) / motion["fps"] / max(args.speed, 1e-6)

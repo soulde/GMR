@@ -124,6 +124,53 @@ def safe_name(input_dir, motion_path):
     return "__".join(rel.with_suffix("").parts)
 
 
+def output_paths(args, motion_path):
+    input_dir = args.input_dir.resolve()
+    rel = motion_path.resolve().relative_to(input_dir)
+    raw_dir = args.output_dir / "raw"
+    pre_dir = args.output_dir / "preprocessed"
+    dataset_dir = args.output_dir / "dataset"
+    if args.preserve_tree:
+        rel_no_suffix = rel.with_suffix("")
+        raw_pkl = raw_dir / rel_no_suffix.with_suffix(".pkl")
+        pre_pkl = pre_dir / rel_no_suffix.with_name(f"{rel_no_suffix.name}_preprocessed.pkl")
+        dataset_npz = dataset_dir / rel_no_suffix.with_name(f"{rel_no_suffix.name}_dataset.npz")
+        report_name = "__".join(rel_no_suffix.parts)
+    else:
+        report_name = safe_name(input_dir, motion_path.resolve())
+        raw_pkl = raw_dir / f"{report_name}.pkl"
+        pre_pkl = pre_dir / f"{report_name}_preprocessed.pkl"
+        dataset_npz = dataset_dir / f"{report_name}_dataset.npz"
+    return report_name, raw_pkl, pre_pkl, dataset_npz
+
+
+def load_excludes(path, input_dir):
+    if path is None:
+        return set()
+    path = Path(path)
+    if not path.exists():
+        raise FileNotFoundError(path)
+    excludes = set()
+    for raw in path.read_text().splitlines():
+        line = raw.split("#", 1)[0].strip()
+        if not line:
+            continue
+        candidate = Path(line)
+        if candidate.is_absolute():
+            try:
+                excludes.add(candidate.resolve().relative_to(input_dir.resolve()).as_posix())
+            except ValueError:
+                excludes.add(candidate.resolve().as_posix())
+        else:
+            excludes.add(candidate.as_posix())
+    return excludes
+
+
+def is_excluded(motion_path, input_dir, excludes):
+    rel = motion_path.resolve().relative_to(input_dir.resolve()).as_posix()
+    return rel in excludes or motion_path.name in excludes or motion_path.stem in excludes
+
+
 def classify_quality(quality_dir, cfg):
     metrics_path = quality_dir / "metrics.csv"
     joint_path = quality_dir / "joint_range.csv"
@@ -222,16 +269,10 @@ def final_status(quality_status, pd_status, dataset_status):
 def process_motion(motion_path, args, cfg):
     cwd = Path.cwd()
     input_dir = args.input_dir.resolve()
-    name = safe_name(input_dir, motion_path.resolve())
+    name, raw_pkl, pre_pkl, dataset_npz = output_paths(args, motion_path)
 
-    raw_dir = args.output_dir / "raw"
-    pre_dir = args.output_dir / "preprocessed"
-    dataset_dir = args.output_dir / "dataset"
     quality_dir = args.reports_dir / "motion_quality" / name
     pd_dir = args.reports_dir / "pd_replay" / name
-    raw_pkl = raw_dir / f"{name}.pkl"
-    pre_pkl = pre_dir / f"{name}_preprocessed.pkl"
-    dataset_npz = dataset_dir / f"{name}_dataset.npz"
 
     row = {field: "" for field in SUMMARY_FIELDS}
     row.update(
@@ -246,9 +287,9 @@ def process_motion(motion_path, args, cfg):
     )
 
     try:
-        raw_dir.mkdir(parents=True, exist_ok=True)
-        pre_dir.mkdir(parents=True, exist_ok=True)
-        dataset_dir.mkdir(parents=True, exist_ok=True)
+        raw_pkl.parent.mkdir(parents=True, exist_ok=True)
+        pre_pkl.parent.mkdir(parents=True, exist_ok=True)
+        dataset_npz.parent.mkdir(parents=True, exist_ok=True)
         args.reports_dir.mkdir(parents=True, exist_ok=True)
 
         if args.force or not raw_pkl.exists():
@@ -394,6 +435,8 @@ def main():
     parser.add_argument("--pattern", type=str, default="*stageii.npz")
     parser.add_argument("--jobs", type=int, default=1)
     parser.add_argument("--limit", type=int, default=None)
+    parser.add_argument("--exclude-file", type=Path, default=None)
+    parser.add_argument("--preserve-tree", action="store_true")
     parser.add_argument("--run-pd-smoke", action="store_true")
     parser.add_argument("--auto-start-frame", action="store_true")
     parser.add_argument("--force", action="store_true")
@@ -405,7 +448,12 @@ def main():
     args.reports_dir = args.reports_dir.resolve()
     cfg = load_config(args.config)
 
-    motions = sorted(args.input_dir.rglob(args.pattern))
+    excludes = load_excludes(args.exclude_file, args.input_dir)
+    motions = [
+        motion
+        for motion in sorted(args.input_dir.rglob(args.pattern))
+        if not is_excluded(motion, args.input_dir, excludes)
+    ]
     if args.limit is not None:
         motions = motions[: args.limit]
     if not motions:

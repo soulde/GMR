@@ -4,8 +4,7 @@ from pathlib import Path
 import mujoco
 import numpy as np
 
-from general_motion_retargeting.dr02.motion_tools import (
-    contact_summary,
+from general_motion_retargeting.utils.robot_motion import (
     ensure_dir,
     estimate_contacts,
     joint_limit_report,
@@ -15,6 +14,23 @@ from general_motion_retargeting.dr02.motion_tools import (
     write_csv,
     compute_kinematic_metrics,
 )
+
+DR02_FOOT_SITES = {"left_foot": "left_foot", "right_foot": "right_foot"}
+
+
+def contact_summary(left_contact, right_contact):
+    left = left_contact.astype(bool)
+    right = right_contact.astype(bool)
+    double = left & right
+    single = left ^ right
+    flight = ~(left | right)
+    return {
+        "left_contact_ratio": float(left.mean()),
+        "right_contact_ratio": float(right.mean()),
+        "double_support_ratio": float(double.mean()),
+        "single_support_ratio": float(single.mean()),
+        "flight_ratio": float(flight.mean()),
+    }
 
 
 def mean_or_nan(values):
@@ -129,10 +145,15 @@ def main():
     plots = ensure_dir(out / "plots")
     model = mujoco.MjModel.from_xml_path(str(args.xml))
     motion = load_motion(args.motion)
-    metrics = compute_kinematic_metrics(model, motion)
-    left_contact, right_contact = estimate_contacts(
-        metrics, args.contact_height_threshold, args.contact_xy_speed_threshold
+    metrics = compute_kinematic_metrics(model, motion, DR02_FOOT_SITES)
+    contacts = estimate_contacts(
+        metrics,
+        DR02_FOOT_SITES,
+        args.contact_height_threshold,
+        args.contact_xy_speed_threshold,
     )
+    left_contact = contacts["left_foot"]
+    right_contact = contacts["right_foot"]
     joint_rows = joint_limit_report(model, metrics["joint_pos"])
 
     T = len(metrics["time"])

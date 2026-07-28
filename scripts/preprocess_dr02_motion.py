@@ -4,7 +4,7 @@ from pathlib import Path
 import mujoco
 import numpy as np
 
-from general_motion_retargeting.dr02.motion_tools import (
+from general_motion_retargeting.utils.robot_motion import (
     compute_dataset_fields,
     compute_kinematic_metrics,
     ensure_dir,
@@ -14,6 +14,8 @@ from general_motion_retargeting.dr02.motion_tools import (
     quat_slerp,
     save_motion_pkl,
 )
+
+DR02_FOOT_SITES = {"left_foot": "left_foot", "right_foot": "right_foot"}
 
 
 def smoothstep(alpha):
@@ -47,7 +49,7 @@ def build_preprocessed_motion(model, motion, stand_time, blend_time, fps, start_
     }
 
     if auto_start_frame:
-        metrics = compute_kinematic_metrics(model, source)
+        metrics = compute_kinematic_metrics(model, source, DR02_FOOT_SITES)
         start_frame = find_stable_start_frame(metrics)
     if start_frame is None:
         start_frame = 0
@@ -126,6 +128,7 @@ def main():
     dataset = compute_dataset_fields(
         model,
         processed,
+        DR02_FOOT_SITES,
         cycle_length=args.cycle_length,
         contact_height=args.contact_height_threshold,
         contact_xy_speed=args.contact_xy_speed_threshold,

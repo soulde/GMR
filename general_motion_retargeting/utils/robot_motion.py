@@ -8,17 +8,6 @@ import numpy as np
 from scipy.spatial.transform import Rotation as R, Slerp
 
 
-FOOT_BODIES = {
-    "left": "left_ankle_x_link",
-    "right": "right_ankle_x_link",
-}
-
-FOOT_SITES = {
-    "left": "left_foot",
-    "right": "right_foot",
-}
-
-
 def ensure_dir(path):
     path = Path(path)
     path.mkdir(parents=True, exist_ok=True)
@@ -76,11 +65,16 @@ def save_motion_pkl(path, motion):
         "joint_vel": np.asarray(motion.get("joint_vel", []), dtype=float),
         "root_lin_vel": np.asarray(motion.get("root_lin_vel", []), dtype=float),
         "root_ang_vel": np.asarray(motion.get("root_ang_vel", []), dtype=float),
-        "left_foot_contact": np.asarray(motion.get("left_foot_contact", [])),
-        "right_foot_contact": np.asarray(motion.get("right_foot_contact", [])),
         "local_body_pos": None,
         "link_body_list": None,
     }
+    payload.update(
+        {
+            key: np.asarray(value)
+            for key, value in motion.items()
+            if key.endswith("_contact")
+        }
+    )
     with path.open("wb") as f:
         pickle.dump(payload, f)
 
@@ -163,7 +157,7 @@ def set_qpos(data, root_pos, root_quat, joint_pos):
     data.qpos[7:] = joint_pos
 
 
-def compute_kinematic_metrics(model, motion):
+def compute_kinematic_metrics(model, motion, end_effector_sites):
     root_pos = motion["root_pos"]
     root_quat = motion["root_quat"]
     joint_pos = motion["joint_pos"]
@@ -173,30 +167,31 @@ def compute_kinematic_metrics(model, motion):
         raise ValueError(f"joint_pos has {joint_pos.shape[1]} columns, expected {model.nq - 7}")
 
     data = mujoco.MjData(model)
-    left_site = mujoco.mj_name2id(model, mujoco.mjtObj.mjOBJ_SITE, FOOT_SITES["left"])
-    right_site = mujoco.mj_name2id(model, mujoco.mjtObj.mjOBJ_SITE, FOOT_SITES["right"])
+    site_ids = {
+        label: mujoco.mj_name2id(model, mujoco.mjtObj.mjOBJ_SITE, site_name)
+        for label, site_name in end_effector_sites.items()
+    }
+    missing = [label for label, site_id in site_ids.items() if site_id < 0]
+    if missing:
+        raise ValueError(f"Missing MuJoCo sites for end effectors: {missing}")
 
     T = len(root_pos)
-    left_foot_pos = np.zeros((T, 3), dtype=float)
-    right_foot_pos = np.zeros((T, 3), dtype=float)
+    site_positions = {
+        label: np.zeros((T, 3), dtype=float) for label in end_effector_sites
+    }
     base_rpy = R.from_quat(root_quat, scalar_first=True).as_euler("xyz")
 
     for t in range(T):
         set_qpos(data, root_pos[t], root_quat[t], joint_pos[t])
         mujoco.mj_forward(model, data)
-        left_foot_pos[t] = data.site_xpos[left_site]
-        right_foot_pos[t] = data.site_xpos[right_site]
+        for label, site_id in site_ids.items():
+            site_positions[label][t] = data.site_xpos[site_id]
 
-    left_foot_vel = finite_difference(left_foot_pos, fps)
-    right_foot_vel = finite_difference(right_foot_pos, fps)
     joint_vel = finite_difference(joint_pos, fps)
     root_lin_vel = finite_difference(root_pos, fps)
     root_ang_vel = angular_velocity_from_quat(root_quat, fps)
 
-    left_xy_speed = np.linalg.norm(left_foot_vel[:, :2], axis=1)
-    right_xy_speed = np.linalg.norm(right_foot_vel[:, :2], axis=1)
-
-    return {
+    metrics = {
         "fps": fps,
         "time": np.arange(T) / fps,
         "root_pos": root_pos,
@@ -205,29 +200,30 @@ def compute_kinematic_metrics(model, motion):
         "joint_vel": joint_vel,
         "root_lin_vel": root_lin_vel,
         "root_ang_vel": root_ang_vel,
-        "left_foot_pos": left_foot_pos,
-        "right_foot_pos": right_foot_pos,
-        "left_foot_vel": left_foot_vel,
-        "right_foot_vel": right_foot_vel,
-        "left_foot_height": left_foot_pos[:, 2],
-        "right_foot_height": right_foot_pos[:, 2],
-        "left_foot_xy_speed": left_xy_speed,
-        "right_foot_xy_speed": right_xy_speed,
         "base_height": root_pos[:, 2],
         "base_roll": base_rpy[:, 0],
         "base_pitch": base_rpy[:, 1],
         "base_yaw": np.unwrap(base_rpy[:, 2]),
     }
+    for label, position in site_positions.items():
+        velocity = finite_difference(position, fps)
+        metrics[f"{label}_pos"] = position
+        metrics[f"{label}_vel"] = velocity
+        metrics[f"{label}_height"] = position[:, 2]
+        metrics[f"{label}_xy_speed"] = np.linalg.norm(velocity[:, :2], axis=1)
+    return metrics
 
 
-def estimate_contacts(metrics, height_threshold=0.04, xy_speed_threshold=0.20):
-    left = (metrics["left_foot_height"] < height_threshold) & (
-        metrics["left_foot_xy_speed"] < xy_speed_threshold
-    )
-    right = (metrics["right_foot_height"] < height_threshold) & (
-        metrics["right_foot_xy_speed"] < xy_speed_threshold
-    )
-    return left.astype(bool), right.astype(bool)
+def estimate_contacts(
+    metrics, end_effector_labels, height_threshold=0.04, xy_speed_threshold=0.20
+):
+    return {
+        label: (
+            (metrics[f"{label}_height"] < height_threshold)
+            & (metrics[f"{label}_xy_speed"] < xy_speed_threshold)
+        ).astype(bool)
+        for label in end_effector_labels
+    }
 
 
 def joint_limit_report(model, joint_pos):
@@ -302,21 +298,6 @@ def plot_series(path, time, series, labels, title, ylabel):
     plt.close()
 
 
-def contact_summary(left_contact, right_contact):
-    left = left_contact.astype(bool)
-    right = right_contact.astype(bool)
-    double = left & right
-    single = left ^ right
-    flight = ~(left | right)
-    return {
-        "left_contact_ratio": float(left.mean()),
-        "right_contact_ratio": float(right.mean()),
-        "double_support_ratio": float(double.mean()),
-        "single_support_ratio": float(single.mean()),
-        "flight_ratio": float(flight.mean()),
-    }
-
-
 def command_refs(root_pos, root_quat, fps):
     root_lin_vel = finite_difference(root_pos, fps)
     yaw = unwrap_yaw(root_quat)
@@ -324,28 +305,31 @@ def command_refs(root_pos, root_quat, fps):
     return root_lin_vel[:, 0], root_lin_vel[:, 1], yaw_rate
 
 
-def compute_dataset_fields(model, motion, cycle_length=None, contact_height=0.04, contact_xy_speed=0.20):
-    metrics = compute_kinematic_metrics(model, motion)
-    left_contact, right_contact = estimate_contacts(metrics, contact_height, contact_xy_speed)
+def compute_dataset_fields(
+    model,
+    motion,
+    end_effector_sites,
+    cycle_length=None,
+    contact_height=0.04,
+    contact_xy_speed=0.20,
+):
+    metrics = compute_kinematic_metrics(model, motion, end_effector_sites)
+    contacts = estimate_contacts(
+        metrics, end_effector_sites, contact_height, contact_xy_speed
+    )
     T = len(metrics["root_pos"])
     if cycle_length is None or cycle_length <= 0:
         cycle_length = T
     phase = (np.arange(T) % cycle_length) / float(cycle_length)
     vx_ref, vy_ref, yaw_rate_ref = command_refs(metrics["root_pos"], metrics["root_quat"], metrics["fps"])
     joint_names = np.asarray(model_joint_info(model)["names"], dtype=object)
-    return {
+    dataset = {
         "root_pos": metrics["root_pos"],
         "root_quat": metrics["root_quat"],
         "root_lin_vel": metrics["root_lin_vel"],
         "root_ang_vel": metrics["root_ang_vel"],
         "joint_pos": metrics["joint_pos"],
         "joint_vel": metrics["joint_vel"],
-        "left_foot_pos": metrics["left_foot_pos"],
-        "right_foot_pos": metrics["right_foot_pos"],
-        "left_foot_vel": metrics["left_foot_vel"],
-        "right_foot_vel": metrics["right_foot_vel"],
-        "left_foot_contact": left_contact.astype(np.uint8),
-        "right_foot_contact": right_contact.astype(np.uint8),
         "phase": phase,
         "phase_sin": np.sin(2 * np.pi * phase),
         "phase_cos": np.cos(2 * np.pi * phase),
@@ -355,3 +339,8 @@ def compute_dataset_fields(model, motion, cycle_length=None, contact_height=0.04
         "fps": np.asarray(metrics["fps"], dtype=float),
         "joint_names": joint_names,
     }
+    for label in end_effector_sites:
+        dataset[f"{label}_pos"] = metrics[f"{label}_pos"]
+        dataset[f"{label}_vel"] = metrics[f"{label}_vel"]
+        dataset[f"{label}_contact"] = contacts[label].astype(np.uint8)
+    return dataset

@@ -1,3 +1,5 @@
+from dataclasses import replace
+
 import mink
 import mujoco
 import numpy as np
@@ -33,6 +35,8 @@ class QuadrupedRobotRetargeter:
         self.solver = solver
         self.damping = damping
         self.max_iterations = max_iterations
+        self.use_velocity_limit = use_velocity_limit
+        self.velocity_limit = velocity_limit
         self.configuration = mink.Configuration(target_spec.model)
 
         self.root_task = mink.FrameTask(
@@ -178,6 +182,25 @@ class QuadrupedRobotRetargeter:
         root_qpos_address = model.jnt_qposadr[free_joint]
         qpos[:, root_qpos_address + 2] -= lowest
 
+    def _enforce_frame_velocity(
+        self, previous_qpos: np.ndarray, fps: float
+    ) -> None:
+        max_step = self.velocity_limit / fps
+        qpos = self.configuration.q.copy()
+        for joint_name in self.target_spec.motion_joint_order:
+            joint_id = mujoco.mj_name2id(
+                self.target_spec.model,
+                mujoco.mjtObj.mjOBJ_JOINT,
+                joint_name,
+            )
+            address = self.target_spec.model.jnt_qposadr[joint_id]
+            qpos[address] = np.clip(
+                qpos[address],
+                previous_qpos[address] - max_step,
+                previous_qpos[address] + max_step,
+            )
+        self.configuration.update(qpos)
+
     def retarget_motion(
         self,
         motion: JointSpaceMotion,
@@ -211,7 +234,17 @@ class QuadrupedRobotRetargeter:
                 motion.root_rot[frame_index],
                 scaled.foot_pos_root[frame_index],
             )
-            diagnostics.append(self._solve_frame(frame_index))
+            diagnostic = self._solve_frame(frame_index)
+            if self.use_velocity_limit and frame_index > 0:
+                self._enforce_frame_velocity(qpos[frame_index - 1], motion.fps)
+                diagnostic = replace(
+                    diagnostic,
+                    final_error=self._task_error(),
+                    joint_limit_hits=self._joint_limit_hits(
+                        self.configuration.q
+                    ),
+                )
+            diagnostics.append(diagnostic)
             qpos[frame_index] = self.configuration.q
 
         if not np.isfinite(qpos).all():

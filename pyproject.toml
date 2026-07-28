@@ -31,3 +31,8 @@ smplx = { git = "https://github.com/vchoutas/smplx" }
 dev = [
     "pytest>=9.1.1",
 ]
+
+[tool.pytest.ini_options]
+markers = [
+    "integration: deterministic offline integration tests",
+]

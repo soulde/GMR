@@ -1,6 +1,7 @@
 import argparse
 import pickle
 import sys
+from dataclasses import asdict
 from pathlib import Path
 
 import mujoco
@@ -76,6 +77,9 @@ def _serialize_result(result, target_spec, save_path: Path) -> None:
         "root_pos": result.qpos[:, root_address : root_address + 3].copy(),
         "root_rot": root_wxyz[:, [1, 2, 3, 0]].copy(),
         "dof_pos": result.qpos[:, joint_addresses].copy(),
+        "retarget_diagnostics": [
+            asdict(diagnostic) for diagnostic in result.diagnostics
+        ],
         "local_body_pos": None,
         "link_body_list": None,
     }

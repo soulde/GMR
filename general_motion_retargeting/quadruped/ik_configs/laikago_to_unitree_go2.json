@@ -1,0 +1,31 @@
+{
+  "ground_height": 0.0,
+  "ik": {
+    "solver": "daqp",
+    "damping": 0.5,
+    "max_iterations": 10,
+    "velocity_limit": 9.42477796076938
+  },
+  "motion_mapping": {
+    "center": "temporal_median",
+    "scale_table": {
+      "root": [1.0, 1.0, 1.0],
+      "FL": [1.0, 1.0, 0.878280151975182],
+      "FR": [1.0, 1.0, 0.878280151975182],
+      "RL": [1.0, 1.0, 0.878280151975182],
+      "RR": [1.0, 1.0, 0.878280151975182]
+    }
+  },
+  "tasks": {
+    "root": {
+      "position_cost": 100.0,
+      "orientation_cost": 100.0
+    },
+    "feet": {
+      "FL": {"position_cost": 100.0, "position_offset": [0.0, 0.0, 0.0]},
+      "FR": {"position_cost": 100.0, "position_offset": [0.0, 0.0, 0.0]},
+      "RL": {"position_cost": 100.0, "position_offset": [0.0, 0.0, 0.0]},
+      "RR": {"position_cost": 100.0, "position_offset": [0.0, 0.0, 0.0]}
+    }
+  }
+}

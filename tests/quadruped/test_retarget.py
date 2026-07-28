@@ -2,6 +2,7 @@ from pathlib import Path
 
 import mujoco
 import numpy as np
+import pytest
 
 from general_motion_retargeting.quadruped.retarget import (
     QuadrupedRobotRetargeter,
@@ -17,12 +18,7 @@ CONFIGS = ROOT / "general_motion_retargeting/quadruped/configs"
 def test_go2_retargeter_solves_reference_stance():
     source_spec = load_robot_spec(CONFIGS / "laikago.yaml", ROOT)
     target_spec = load_robot_spec(CONFIGS / "unitree_go2.yaml", ROOT)
-    source_joints = np.array(
-        [
-            source_spec.reference_pose[name]
-            for name in source_spec.motion_joint_order
-        ]
-    )
+    source_joints = np.zeros(len(source_spec.motion_joint_order))
     motion = JointSpaceMotion(
         fps=50.0,
         root_pos=np.array([[0.0, 0.0, 0.45]]),
@@ -52,3 +48,21 @@ def test_go2_retargeter_solves_reference_stance():
         value = result.qpos[0, target_spec.model.jnt_qposadr[joint_id]]
         lower, upper = target_spec.model.jnt_range[joint_id]
         assert lower <= value <= upper
+
+    data = mujoco.MjData(target_spec.model)
+    data.qpos[:] = result.qpos[0]
+    mujoco.mj_forward(target_spec.model, data)
+    foot_site_heights = [
+        data.site_xpos[
+            mujoco.mj_name2id(
+                target_spec.model,
+                mujoco.mjtObj.mjOBJ_SITE,
+                target_spec.legs[leg].foot_site,
+            ),
+            2,
+        ]
+        for leg in target_spec.leg_order
+    ]
+    assert min(foot_site_heights) == pytest.approx(
+        target_spec.foot_contact_offset, abs=1e-6
+    )

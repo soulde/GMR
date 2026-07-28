@@ -1,7 +1,9 @@
 robot: unitree_go2
 model_type: quadruped
-mjcf_path: assets/quadrupeds/unitree_go2/go2.xml
+mjcf_path: assets/quadrupeds/unitree_go2/scene.xml
 root_body: base
+# The foot sites are at the centers of the 22 mm spherical collision geoms.
+foot_contact_offset: 0.022
 legs:
   FL:
     joints: [FL_hip_joint, FL_thigh_joint, FL_calf_joint]
@@ -30,20 +32,3 @@ motion:
     - RR_hip_joint
     - RR_thigh_joint
     - RR_calf_joint
-reference_pose:
-  FL_hip_joint: 0.0
-  FL_thigh_joint: 0.9
-  FL_calf_joint: -1.8
-  FR_hip_joint: 0.0
-  FR_thigh_joint: 0.9
-  FR_calf_joint: -1.8
-  RL_hip_joint: 0.0
-  RL_thigh_joint: 0.9
-  RL_calf_joint: -1.8
-  RR_hip_joint: 0.0
-  RR_thigh_joint: 0.9
-  RR_calf_joint: -1.8
-joint_mapping:
-  hip: {sign: 1.0, scale: 1.0}
-  thigh: {sign: 1.0, scale: 1.0}
-  calf: {sign: 1.0, scale: 1.0}

@@ -16,11 +16,26 @@ class Morphology:
     leg_reach: float
 
 
-def _reference_motion(spec: QuadrupedRobotSpec) -> JointSpaceMotion:
-    joint_pos = np.array(
-        [[spec.reference_pose[name] for name in spec.motion_joint_order]],
+def _default_joint_positions(spec: QuadrupedRobotSpec) -> np.ndarray:
+    return np.asarray(
+        [
+            spec.model.qpos0[
+                spec.model.jnt_qposadr[
+                    mujoco.mj_name2id(
+                        spec.model,
+                        mujoco.mjtObj.mjOBJ_JOINT,
+                        name,
+                    )
+                ]
+            ]
+            for name in spec.motion_joint_order
+        ],
         dtype=float,
     )
+
+
+def _reference_motion(spec: QuadrupedRobotSpec) -> JointSpaceMotion:
+    joint_pos = _default_joint_positions(spec)[None]
     return JointSpaceMotion(
         fps=1.0,
         root_pos=np.zeros((1, 3), dtype=float),
@@ -46,9 +61,7 @@ def _reference_hips_root(spec: QuadrupedRobotSpec) -> np.ndarray:
         model,
         data,
         spec.motion_joint_order,
-        np.array(
-            [spec.reference_pose[name] for name in spec.motion_joint_order]
-        ),
+        _default_joint_positions(spec),
     )
     mujoco.mj_forward(model, data)
     root_id = mujoco.mj_name2id(
@@ -94,22 +107,44 @@ def scale_foot_trajectories(
     motion: CanonicalQuadrupedMotion,
     source_spec: QuadrupedRobotSpec,
     target_spec: QuadrupedRobotSpec,
+    trajectory_scale: np.ndarray | None = None,
+    motion_center: str = "temporal_median",
+    root_translation_scale: np.ndarray | None = None,
 ) -> CanonicalQuadrupedMotion:
     source = describe_morphology(source_spec)
     target = describe_morphology(target_spec)
-    scale = np.array(
-        [
-            target.hip_length / source.hip_length,
-            target.hip_width / source.hip_width,
-            target.leg_reach / source.leg_reach,
-        ]
-    )
+    if motion_center == "temporal_median":
+        source_motion_center = np.median(motion.foot_pos_root, axis=0)
+    elif motion_center == "mjcf_default":
+        source_motion_center = source.neutral_feet
+    else:
+        raise ValueError(f"unsupported motion center: {motion_center!r}")
+    if trajectory_scale is None:
+        scale = np.broadcast_to(
+            (1.0, 1.0, target.leg_reach / source.leg_reach),
+            (4, 3),
+        )
+    else:
+        scale = np.asarray(trajectory_scale, dtype=float)
+        if scale.shape != (4, 3):
+            raise ValueError("trajectory_scale must have shape [4, 3]")
     feet = target.neutral_feet + (
-        motion.foot_pos_root - source.neutral_feet
+        motion.foot_pos_root - source_motion_center
     ) * scale
+    root_scale = np.asarray(
+        root_translation_scale
+        if root_translation_scale is not None
+        else (1.0, 1.0, 1.0),
+        dtype=float,
+    )
+    if root_scale.shape != (3,):
+        raise ValueError("root_translation_scale must have shape [3]")
+    root_pos = motion.root_pos[0] + (
+        motion.root_pos - motion.root_pos[0]
+    ) * root_scale
     return CanonicalQuadrupedMotion(
         fps=motion.fps,
-        root_pos=motion.root_pos.copy(),
+        root_pos=root_pos,
         root_rot=motion.root_rot.copy(),
         foot_pos_root=feet,
         leg_order=motion.leg_order,

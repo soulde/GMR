@@ -12,13 +12,15 @@ if str(REPO_ROOT) not in sys.path:
     sys.path.insert(0, str(REPO_ROOT))
 
 from general_motion_retargeting.factory import create_retargeter
+from general_motion_retargeting.params import (
+    QUADRUPED_IK_CONFIG_DICT,
+    QUADRUPED_ROBOT_CONFIG_DICT,
+)
+from general_motion_retargeting.quadruped.config import load_retarget_config
 from general_motion_retargeting.quadruped.loaders.motion_imitation import (
     load_motion_imitation,
 )
 from general_motion_retargeting.quadruped.robot_spec import load_robot_spec
-
-CONFIG_ROOT = REPO_ROOT / "general_motion_retargeting" / "quadruped" / "configs"
-
 
 def build_parser() -> argparse.ArgumentParser:
     parser = argparse.ArgumentParser(
@@ -38,13 +40,14 @@ def build_parser() -> argparse.ArgumentParser:
     parser.add_argument("--record_video", action="store_true")
     parser.add_argument("--video_path", type=Path, default=None)
     parser.add_argument("--use_velocity_limit", action="store_true")
+    parser.add_argument("--retarget_config", type=Path, default=None)
     return parser
 
 
 def _load_named_spec(robot: str):
-    config_path = CONFIG_ROOT / f"{robot}.yaml"
-    if not config_path.is_file():
-        available = ", ".join(path.stem for path in sorted(CONFIG_ROOT.glob("*.yaml")))
+    config_path = QUADRUPED_ROBOT_CONFIG_DICT.get(robot)
+    if config_path is None:
+        available = ", ".join(sorted(QUADRUPED_ROBOT_CONFIG_DICT))
         raise ValueError(
             f"unknown quadruped robot {robot!r}; available configs: {available}"
         )
@@ -99,6 +102,7 @@ def run(
     video_path=None,
     use_velocity_limit=False,
     model_type="quadruped",
+    retarget_config=None,
 ):
     source_spec = _load_named_spec(source_robot)
     target_spec = _load_named_spec(robot)
@@ -108,11 +112,22 @@ def run(
         source_spec.quaternion_order,
         source_spec.root_frame_rotation_wxyz,
     )
+    if retarget_config is not None:
+        config_path = Path(retarget_config)
+    else:
+        try:
+            config_path = QUADRUPED_IK_CONFIG_DICT[source_robot][robot]
+        except KeyError as error:
+            raise ValueError(
+                f"no quadruped IK config for {source_robot!r} to {robot!r}"
+            ) from error
+    config = load_retarget_config(config_path)
     retargeter = create_retargeter(
         model_type=model_type,
         source_spec=source_spec,
         target_spec=target_spec,
         use_velocity_limit=use_velocity_limit,
+        config=config,
     )
     result = retargeter.retarget_motion(motion)
 

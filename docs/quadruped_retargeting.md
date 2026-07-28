@@ -7,11 +7,14 @@ unchanged.
 
 All adapters and saved outputs must follow
 [GMR Motion Coordinate Conventions](motion_coordinate_conventions.md).
+See [Quadruped Configuration Reference](quadruped_configuration.md) for the
+complete robot YAML and source-to-target IK JSON schema.
 
 ## Pipeline
 
 ```text
 motion_imitation txt + source MJCF + source YAML
+  + source-to-target IK config
   -> source joint-space motion
   -> MuJoCo source forward kinematics
   -> trunk-relative FL/FR/RL/RR foot trajectories
@@ -28,6 +31,8 @@ existing GMR `xyzw` convention.
 ## Usage
 
 ```bash
+python scripts/download_quadruped_motions.py
+
 python scripts/motion_imitation_to_robot.py \
   --motion_file assets/quadrupeds/motions/dog_pace.txt \
   --source_robot laikago \
@@ -58,6 +63,30 @@ Phase 1 requires an MJCF and a semantic YAML file. Add the MJCF under
 `assets/quadrupeds/<robot>/` and the YAML under
 `general_motion_retargeting/quadruped/configs/<robot>.yaml`.
 
+As in the humanoid GMR path, solver and task parameters live in a
+source-to-target IK configuration. Add
+`general_motion_retargeting/quadruped/ik_configs/<source>_to_<target>.json`.
+The conversion CLI selects this file automatically; `--retarget_config`
+overrides it.
+
+The quadruped-specific configuration contains:
+
+- `ik`: solver, damping, iteration count, and joint velocity limit.
+- `tasks.root`: root position and orientation costs.
+- `tasks.feet`: per-leg position costs and root-frame XYZ target offsets.
+- `motion_mapping.center`: `temporal_median` or `mjcf_default`.
+- `motion_mapping.scale_table`: root and per-leg XYZ dynamic scales.
+- `ground_height`: final physical foot-contact surface height.
+
+This is the quadruped equivalent of the humanoid `ik_match_table`: robot model
+semantics remain in the robot YAML, while source-to-target tuning remains in
+the pair configuration. Contact inference and support-foot anchoring are not
+implicit configuration features.
+
+The detailed field reference, units, coordinate semantics, tuning order, and
+complete examples are maintained in
+[Quadruped Configuration Reference](quadruped_configuration.md).
+
 Each model must declare one root and four legs in this fixed semantic order:
 
 ```yaml
@@ -65,6 +94,7 @@ robot: example
 model_type: quadruped
 mjcf_path: assets/quadrupeds/example/example.xml
 root_body: trunk
+foot_contact_offset: 0.0
 legs:
   FL:
     joints: [FL_hip_joint, FL_thigh_joint, FL_calf_joint]
@@ -82,17 +112,20 @@ motion:
   quaternion_order: xyzw
   root_frame_rotation: [0.5, 0.5, 0.5, 0.5]
   joint_order: [...]
-reference_pose:
-  FL_hip_joint: 0.0
-joint_mapping:
-  hip: {sign: 1.0, scale: 1.0}
-  thigh: {sign: 1.0, scale: 1.0}
-  calf: {sign: 1.0, scale: 1.0}
 ```
 
 Names are validated against the MJCF. The implementation does not infer
 semantics from naming conventions. Source `motion.joint_order` must exactly
 match the values after the root position and quaternion in each source frame.
+As in humanoid GMR, target IK starts from MJCF `model.qpos0`; every declared
+leg joint must have a legal default value.
+
+`foot_contact_offset` is the vertical distance from each configured foot site
+to the lowest physical contact surface. For example, Go2 places each foot site
+at the center of a spherical collision geom with radius `0.022 m`, so its
+offset is `0.022`. Ground alignment and foot-height quality checks use
+`site_z - foot_contact_offset`; this prevents aligning the collision-geom
+center to the floor.
 
 ## Input And Scaling
 
@@ -105,17 +138,22 @@ before transfer. It is independent of motion frames. Omit it when the source
 motion and source MJCF already share the GMR root/world convention.
 
 Source MuJoCo FK converts joint motion into foot positions relative to the
-source trunk. Morphology transfer scales the neutral stance and trajectory
-deltas using source and target hip spacing and nominal leg reach. This avoids
-copying source joint angles between robots with different link geometry.
+source trunk. Morphology transfer centers each leg trajectory on its temporal
+median and maps that center to the target reference stance. Horizontal
+trajectory deltas remain unscaled so a stationary source support foot does not
+gain velocity merely because the robots have different hip spacing. Vertical
+deltas are scaled by the target/source nominal leg-reach ratio. This avoids
+copying source joint angles between robots with different link geometry while
+keeping the dynamic trajectory in the target's reachable neighborhood.
 
 The target solver uses a Mink body task for the trunk and position-only site
 tasks for all four feet. `ConfigurationLimit` always applies. With
 `--use_velocity_limit`, Mink limits each IK update and the final frame-to-frame
 joint delta is clipped to the configured velocity at the motion FPS.
 
-Ground handling only shifts all root heights by the global lowest solved foot
-height. It does not infer support state or move individual feet.
+Ground handling only shifts all root heights until the global lowest solved
+foot contact surface reaches zero height. It does not infer support state or
+move individual feet.
 
 ## Quality Checks
 

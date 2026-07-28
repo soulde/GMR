@@ -119,7 +119,9 @@ def check_motion(
     for frame_index, frame in enumerate(qpos):
         data.qpos[:] = frame
         mujoco.mj_forward(spec.model, data)
-        foot_heights[frame_index] = data.site_xpos[site_ids, 2]
+        foot_heights[frame_index] = (
+            data.site_xpos[site_ids, 2] - spec.foot_contact_offset
+        )
 
     diagnostics = motion.get("retarget_diagnostics", ())
     non_converged = [

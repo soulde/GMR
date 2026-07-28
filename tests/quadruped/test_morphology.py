@@ -20,7 +20,7 @@ CONFIGS = ROOT / "general_motion_retargeting/quadruped/configs"
 FIXTURE = Path(__file__).parent / "fixtures/motion_imitation_two_frames.txt"
 
 
-def test_morphology_maps_neutral_stance_and_scales_dynamic_delta():
+def test_morphology_centers_motion_on_target_stance_and_preserves_horizontal_delta():
     source_spec = load_robot_spec(CONFIGS / "laikago.yaml", ROOT)
     target_spec = load_robot_spec(CONFIGS / "unitree_go2.yaml", ROOT)
     motion = load_motion_imitation(
@@ -29,20 +29,48 @@ def test_morphology_maps_neutral_stance_and_scales_dynamic_delta():
         source_spec.quaternion_order,
     )
     canonical = source_forward_kinematics(source_spec, motion)
-    source_shape = describe_morphology(source_spec)
     target_shape = describe_morphology(target_spec)
 
     scaled = scale_foot_trajectories(
         canonical, source_spec, target_spec
     )
 
-    source_delta = canonical.foot_pos_root[1] - source_shape.neutral_feet
-    target_delta = scaled.foot_pos_root[1] - target_shape.neutral_feet
+    source_shape = describe_morphology(source_spec)
+    source_center = np.median(canonical.foot_pos_root, axis=0)
     expected_scale = np.array(
-        [
-            target_shape.hip_length / source_shape.hip_length,
-            target_shape.hip_width / source_shape.hip_width,
-            target_shape.leg_reach / source_shape.leg_reach,
-        ]
+        [1.0, 1.0, target_shape.leg_reach / source_shape.leg_reach]
     )
-    np.testing.assert_allclose(target_delta, source_delta * expected_scale)
+    expected = target_shape.neutral_feet + (
+        canonical.foot_pos_root - source_center
+    ) * expected_scale
+
+    np.testing.assert_allclose(scaled.foot_pos_root, expected)
+    np.testing.assert_allclose(
+        np.diff(scaled.foot_pos_root[:, :, :2], axis=0),
+        np.diff(canonical.foot_pos_root[:, :, :2], axis=0),
+    )
+
+
+def test_morphology_scales_root_displacement_about_first_frame():
+    source_spec = load_robot_spec(CONFIGS / "laikago.yaml", ROOT)
+    target_spec = load_robot_spec(CONFIGS / "unitree_go2.yaml", ROOT)
+    motion = load_motion_imitation(
+        FIXTURE,
+        source_spec.motion_joint_order,
+        source_spec.quaternion_order,
+    )
+    canonical = source_forward_kinematics(source_spec, motion)
+
+    scaled = scale_foot_trajectories(
+        canonical,
+        source_spec,
+        target_spec,
+        root_translation_scale=np.array([2.0, 0.5, 1.0]),
+    )
+
+    np.testing.assert_allclose(scaled.root_pos[0], canonical.root_pos[0])
+    np.testing.assert_allclose(
+        scaled.root_pos[1] - scaled.root_pos[0],
+        (canonical.root_pos[1] - canonical.root_pos[0])
+        * np.array([2.0, 0.5, 1.0]),
+    )

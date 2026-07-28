@@ -2,6 +2,8 @@ robot: laikago
 model_type: quadruped
 mjcf_path: assets/quadrupeds/laikago/laikago.xml
 root_body: trunk
+# The source foot sites are at the centers of 30 mm spherical toes.
+foot_contact_offset: 0.03
 legs:
   FL:
     joints: [FL_hip_joint, FL_thigh_joint, FL_calf_joint]
@@ -33,16 +35,3 @@ motion:
     - RL_hip_joint
     - RL_thigh_joint
     - RL_calf_joint
-reference_pose:
-  FR_hip_joint: 0.0
-  FR_thigh_joint: 0.67
-  FR_calf_joint: -1.25
-  FL_hip_joint: 0.0
-  FL_thigh_joint: 0.67
-  FL_calf_joint: -1.25
-  RR_hip_joint: 0.0
-  RR_thigh_joint: 0.67
-  RR_calf_joint: -1.25
-  RL_hip_joint: 0.0
-  RL_thigh_joint: 0.67
-  RL_calf_joint: -1.25

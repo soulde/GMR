@@ -5,7 +5,7 @@ import mujoco
 import numpy as np
 from scipy.spatial.transform import Rotation
 
-from .joint_mapping import map_initial_configuration
+from .config import QuadrupedRetargetConfig
 from .kinematics import source_forward_kinematics
 from .morphology import scale_foot_trajectories
 from .robot_spec import QuadrupedRobotSpec
@@ -27,16 +27,70 @@ class QuadrupedRobotRetargeter:
         use_velocity_limit: bool = False,
         velocity_limit: float = 3.0 * np.pi,
         root_position_cost: float = 100.0,
-        root_orientation_cost: float = 10.0,
+        root_orientation_cost: float = 100.0,
         foot_position_cost: float = 100.0,
+        config: QuadrupedRetargetConfig | None = None,
     ) -> None:
+        if config is not None:
+            solver = config.solver
+            damping = config.damping
+            max_iterations = config.max_iterations
+            velocity_limit = config.velocity_limit
+            root_position_cost = config.root_task.position_cost
+            root_orientation_cost = config.root_task.orientation_cost
         self.source_spec = source_spec
         self.target_spec = target_spec
+        self.model = target_spec.model
+        self.xml_file = str(target_spec.mjcf_path)
+        self.robot_dof_names = {
+            mujoco.mj_id2name(
+                self.model,
+                mujoco.mjtObj.mjOBJ_JOINT,
+                self.model.dof_jntid[index],
+            ): index
+            for index in range(self.model.nv)
+        }
+        self.robot_body_names = {
+            mujoco.mj_id2name(
+                self.model, mujoco.mjtObj.mjOBJ_BODY, index
+            ): index
+            for index in range(self.model.nbody)
+        }
+        self.robot_motor_names = {
+            mujoco.mj_id2name(
+                self.model, mujoco.mjtObj.mjOBJ_ACTUATOR, index
+            ): index
+            for index in range(self.model.nu)
+        }
         self.solver = solver
         self.damping = damping
         self.max_iterations = max_iterations
         self.use_velocity_limit = use_velocity_limit
         self.velocity_limit = velocity_limit
+        self.ground_height = config.ground_height if config is not None else 0.0
+        self.motion_center = (
+            config.motion_center if config is not None else "temporal_median"
+        )
+        self.trajectory_scale = (
+            np.asarray(
+                [config.trajectory_scale[leg] for leg in target_spec.leg_order]
+            )
+            if config is not None
+            else None
+        )
+        self.root_translation_scale = (
+            np.asarray(config.root_translation_scale)
+            if config is not None
+            else None
+        )
+        self.foot_position_offsets = {
+            leg: (
+                np.asarray(config.foot_tasks[leg].position_offset)
+                if config is not None
+                else np.zeros(3)
+            )
+            for leg in target_spec.leg_order
+        }
         self.configuration = mink.Configuration(target_spec.model)
 
         self.root_task = mink.FrameTask(
@@ -50,7 +104,11 @@ class QuadrupedRobotRetargeter:
             leg: mink.FrameTask(
                 frame_name=target_spec.legs[leg].foot_site,
                 frame_type="site",
-                position_cost=foot_position_cost,
+                position_cost=(
+                    config.foot_tasks[leg].position_cost
+                    if config is not None
+                    else foot_position_cost
+                ),
                 orientation_cost=0.0,
                 lm_damping=1.0,
             )
@@ -68,6 +126,7 @@ class QuadrupedRobotRetargeter:
                     },
                 )
             )
+        self.ik_limits = self.limits
 
     def _task_error(self) -> float:
         errors = [
@@ -94,6 +153,7 @@ class QuadrupedRobotRetargeter:
         for leg_index, leg in enumerate(self.target_spec.leg_order):
             foot_world = root_pos + root_rotation.apply(
                 foot_pos_root[leg_index]
+                + self.foot_position_offsets[leg]
             )
             self.foot_tasks[leg].set_target(
                 mink.SE3.from_rotation_and_translation(identity, foot_world)
@@ -173,14 +233,18 @@ class QuadrupedRobotRetargeter:
         for frame in qpos:
             data.qpos[:] = frame
             mujoco.mj_forward(model, data)
-            lowest = min(lowest, *(data.site_xpos[site_ids, 2]))
+            contact_heights = (
+                data.site_xpos[site_ids, 2]
+                - self.target_spec.foot_contact_offset
+            )
+            lowest = min(lowest, *contact_heights)
         free_joint = int(
             np.flatnonzero(
                 model.jnt_type == mujoco.mjtJoint.mjJNT_FREE
             )[0]
         )
         root_qpos_address = model.jnt_qposadr[free_joint]
-        qpos[:, root_qpos_address + 2] -= lowest
+        qpos[:, root_qpos_address + 2] += self.ground_height - lowest
 
     def _enforce_frame_velocity(
         self, previous_qpos: np.ndarray, fps: float
@@ -207,11 +271,14 @@ class QuadrupedRobotRetargeter:
     ) -> QuadrupedRetargetResult:
         canonical = source_forward_kinematics(self.source_spec, motion)
         scaled = scale_foot_trajectories(
-            canonical, self.source_spec, self.target_spec
+            canonical,
+            self.source_spec,
+            self.target_spec,
+            self.trajectory_scale,
+            self.motion_center,
+            self.root_translation_scale,
         )
-        initial_qpos = map_initial_configuration(
-            motion.joint_pos[0], self.source_spec, self.target_spec
-        )
+        initial_qpos = self.target_spec.model.qpos0.copy()
         self.configuration.update(initial_qpos)
 
         qpos = np.empty(
@@ -220,18 +287,14 @@ class QuadrupedRobotRetargeter:
         diagnostics = []
         for frame_index in range(len(motion.root_pos)):
             if frame_index == 0:
-                mapped = map_initial_configuration(
-                    motion.joint_pos[0],
-                    self.source_spec,
-                    self.target_spec,
-                )
-                mapped[:7] = np.concatenate(
+                initial = self.target_spec.model.qpos0.copy()
+                initial[:7] = np.concatenate(
                     [motion.root_pos[0], motion.root_rot[0]]
                 )
-                self.configuration.update(mapped)
+                self.configuration.update(initial)
             self._set_targets(
-                motion.root_pos[frame_index],
-                motion.root_rot[frame_index],
+                scaled.root_pos[frame_index],
+                scaled.root_rot[frame_index],
                 scaled.foot_pos_root[frame_index],
             )
             diagnostic = self._solve_frame(frame_index)

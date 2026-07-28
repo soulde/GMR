@@ -9,7 +9,6 @@ import yaml
 
 
 LEG_ORDER = ("FL", "FR", "RL", "RR")
-SEGMENTS = ("hip", "thigh", "calf")
 
 
 @dataclass(frozen=True)
@@ -20,23 +19,16 @@ class LegSpec:
 
 
 @dataclass(frozen=True)
-class JointMapSpec:
-    sign: float
-    scale: float
-
-
-@dataclass(frozen=True)
 class QuadrupedRobotSpec:
     robot: str
     mjcf_path: Path
     model: mujoco.MjModel
     root_body: str
     legs: Mapping[str, LegSpec]
+    foot_contact_offset: float
     motion_joint_order: tuple[str, ...]
     quaternion_order: str
     root_frame_rotation_wxyz: tuple[float, float, float, float] | None
-    reference_pose: Mapping[str, float]
-    joint_mapping: Mapping[str, JointMapSpec]
 
     @property
     def leg_order(self) -> tuple[str, str, str, str]:
@@ -116,6 +108,14 @@ def load_robot_spec(
             )
             if model.jnt_type[joint_id] != mujoco.mjtJoint.mjJNT_HINGE:
                 raise ValueError(f"leg joint {joint_name!r} must be a hinge")
+            qpos0 = model.qpos0[model.jnt_qposadr[joint_id]]
+            if model.jnt_limited[joint_id]:
+                lower, upper = model.jnt_range[joint_id]
+                if qpos0 < lower or qpos0 > upper:
+                    raise ValueError(
+                        f"MJCF qpos0 {qpos0} for {joint_name!r} "
+                        f"is outside [{lower}, {upper}]"
+                    )
 
     motion = payload["motion"]
     motion_joint_order = tuple(motion["joint_order"])
@@ -144,34 +144,9 @@ def load_robot_spec(
             raise ValueError("root_frame_rotation must be a finite quaternion")
         root_frame_rotation_wxyz = tuple(root_frame_rotation / norm)
 
-    reference_pose = {
-        str(name): float(value)
-        for name, value in payload["reference_pose"].items()
-    }
-    for joint_name, value in reference_pose.items():
-        joint_id = _require_name(
-            model, mujoco.mjtObj.mjOBJ_JOINT, joint_name, "reference joint"
-        )
-        if model.jnt_limited[joint_id]:
-            lower, upper = model.jnt_range[joint_id]
-            if value < lower or value > upper:
-                raise ValueError(
-                    f"reference position {value} for {joint_name!r} "
-                    f"is outside [{lower}, {upper}]"
-                )
-
-    joint_mapping = {
-        str(segment): JointMapSpec(
-            sign=float(entry["sign"]),
-            scale=float(entry["scale"]),
-        )
-        for segment, entry in payload.get("joint_mapping", {}).items()
-    }
-    unknown_segments = sorted(set(joint_mapping) - set(SEGMENTS))
-    if unknown_segments:
-        raise ValueError(
-            f"unknown joint mapping segments: {', '.join(unknown_segments)}"
-        )
+    foot_contact_offset = float(payload.get("foot_contact_offset", 0.0))
+    if not np.isfinite(foot_contact_offset) or foot_contact_offset < 0.0:
+        raise ValueError("foot_contact_offset must be finite and non-negative")
 
     return QuadrupedRobotSpec(
         robot=str(payload["robot"]),
@@ -179,9 +154,8 @@ def load_robot_spec(
         model=model,
         root_body=root_body,
         legs=MappingProxyType(legs),
+        foot_contact_offset=foot_contact_offset,
         motion_joint_order=motion_joint_order,
         quaternion_order=quaternion_order,
         root_frame_rotation_wxyz=root_frame_rotation_wxyz,
-        reference_pose=MappingProxyType(reference_pose),
-        joint_mapping=MappingProxyType(joint_mapping),
     )

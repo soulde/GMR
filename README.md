@@ -531,10 +531,15 @@ You should see the visualization of the retargeted robot motion in a mujoco wind
 
 Source adapters must follow the coordinate contract in
 [`docs/motion_coordinate_conventions.md`](docs/motion_coordinate_conventions.md).
+Robot YAML fields, source-to-target IK parameters, units, and tuning guidance
+are documented in
+[`docs/quadruped_configuration.md`](docs/quadruped_configuration.md).
 
 Retarget a `motion_imitation` Laikago motion to Unitree Go2:
 
 ```bash
+python scripts/download_quadruped_motions.py
+
 python scripts/motion_imitation_to_robot.py \
   --motion_file assets/quadrupeds/motions/dog_pace.txt \
   --source_robot laikago \

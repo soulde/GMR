@@ -2,6 +2,8 @@ import pathlib
 
 HERE = pathlib.Path(__file__).parent
 IK_CONFIG_ROOT = HERE / "ik_configs"
+QUADRUPED_CONFIG_ROOT = HERE / "quadruped" / "configs"
+QUADRUPED_IK_CONFIG_ROOT = HERE / "quadruped" / "ik_configs"
 ASSET_ROOT = HERE / ".." / "assets"
 
 ROBOT_XML_DICT = {
@@ -78,6 +80,19 @@ IK_CONFIG_DICT = {
     },
     "xsens_mvn": {
         "unitree_g1": IK_CONFIG_ROOT / "xsens_mvn_to_g1.json",
+    },
+}
+
+QUADRUPED_ROBOT_CONFIG_DICT = {
+    "laikago": QUADRUPED_CONFIG_ROOT / "laikago.yaml",
+    "unitree_go2": QUADRUPED_CONFIG_ROOT / "unitree_go2.yaml",
+}
+
+QUADRUPED_IK_CONFIG_DICT = {
+    "laikago": {
+        "unitree_go2": (
+            QUADRUPED_IK_CONFIG_ROOT / "laikago_to_unitree_go2.json"
+        ),
     },
 }
 

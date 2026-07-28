@@ -529,6 +529,9 @@ You should see the visualization of the retargeted robot motion in a mujoco wind
 
 ### Quadruped robot-to-robot retargeting
 
+Source adapters must follow the coordinate contract in
+[`docs/motion_coordinate_conventions.md`](docs/motion_coordinate_conventions.md).
+
 Retarget a `motion_imitation` Laikago motion to Unitree Go2:
 
 ```bash

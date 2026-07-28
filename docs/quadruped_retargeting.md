@@ -5,6 +5,9 @@ supported source is a Laikago `motion_imitation` motion and the first target is
 Unitree Go2. The existing humanoid `GeneralMotionRetargeting` flow is
 unchanged.
 
+All adapters and saved outputs must follow
+[GMR Motion Coordinate Conventions](motion_coordinate_conventions.md).
+
 ## Pipeline
 
 ```text

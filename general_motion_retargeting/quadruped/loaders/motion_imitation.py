@@ -43,7 +43,7 @@ def load_motion_imitation(
         root_frame_rotation = Rotation.from_quat(
             root_frame_rotation_wxyz, scalar_first=True
         )
-        root_rot = (root_frame_rotation.inv() * rotations).as_quat(
+        root_rot = (rotations * root_frame_rotation.inv()).as_quat(
             scalar_first=True
         )
 

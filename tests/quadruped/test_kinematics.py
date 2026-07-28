@@ -1,6 +1,7 @@
 from pathlib import Path
 
 import numpy as np
+from scipy.spatial.transform import Rotation
 
 from general_motion_retargeting.quadruped.kinematics import (
     source_forward_kinematics,
@@ -16,6 +17,7 @@ CONFIG = (
     ROOT / "general_motion_retargeting/quadruped/configs/laikago.yaml"
 )
 FIXTURE = Path(__file__).parent / "fixtures/motion_imitation_two_frames.txt"
+DOG_PACE = ROOT / "assets/quadrupeds/motions/dog_pace.txt"
 
 
 def test_source_fk_returns_root_relative_feet():
@@ -49,3 +51,29 @@ def test_source_fk_is_invariant_to_world_root_translation():
     shifted_feet = source_forward_kinematics(spec, shifted).foot_pos_root
 
     np.testing.assert_allclose(shifted_feet, original_feet, atol=1e-8)
+
+
+def test_dog_pace_source_fk_has_consistent_ground_clearance():
+    spec = load_robot_spec(CONFIG, ROOT)
+    motion = load_motion_imitation(
+        DOG_PACE,
+        spec.motion_joint_order,
+        spec.quaternion_order,
+        spec.root_frame_rotation_wxyz,
+    )
+
+    canonical = source_forward_kinematics(spec, motion)
+    root_rotation = Rotation.from_quat(
+        motion.root_rot, scalar_first=True
+    )
+    foot_world = motion.root_pos[:, None, :] + np.stack(
+        [
+            root_rotation.apply(canonical.foot_pos_root[:, leg_index])
+            for leg_index in range(4)
+        ],
+        axis=1,
+    )
+    minimum_height = foot_world[:, :, 2].min(axis=0)
+
+    assert np.all((minimum_height > 0.03) & (minimum_height < 0.07))
+    assert np.ptp(minimum_height) < 0.01

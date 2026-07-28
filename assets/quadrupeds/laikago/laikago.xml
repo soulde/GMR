@@ -1,0 +1,84 @@
+<mujoco model="laikago">
+  <compiler angle="radian" autolimits="true"/>
+  <option timestep="0.002"/>
+
+  <default>
+    <joint damping="1" armature="0.01"/>
+    <geom contype="0" conaffinity="0" density="500"/>
+  </default>
+
+  <worldbody>
+    <body name="trunk" pos="0 0 0.48">
+      <freejoint name="root"/>
+      <geom type="box" size="0.21 0.08 0.05" rgba="0.25 0.28 0.32 1"/>
+
+      <body name="FR_hip" pos="0.21 -0.1157 0">
+        <joint name="FR_hip_joint" axis="-1 0 0" range="-0.87 0.87"/>
+        <geom type="capsule" fromto="0 0 0 0 -0.08 0" size="0.025"/>
+        <body name="FR_thigh" pos="0 -0.08 0">
+          <joint name="FR_thigh_joint" axis="0 1 0" ref="0.6" range="-1.2 4.0"/>
+          <geom type="capsule" fromto="0 0 0 0 0 -0.25" size="0.025"/>
+          <body name="FR_calf" pos="0 0 -0.25">
+            <joint name="FR_calf_joint" axis="0 1 0" ref="-0.66" range="-3.0 0.5"/>
+            <geom type="capsule" fromto="0 0 0 0 0 -0.25" size="0.02"/>
+            <body name="FR_foot" pos="0 0 -0.25">
+              <geom type="sphere" size="0.025"/>
+              <site name="FR_foot_site" size="0.01"/>
+            </body>
+          </body>
+        </body>
+      </body>
+
+      <body name="FL_hip" pos="0.21 0.1157 0">
+        <joint name="FL_hip_joint" axis="1 0 0" range="-0.87 0.87"/>
+        <geom type="capsule" fromto="0 0 0 0 0.08 0" size="0.025"/>
+        <body name="FL_thigh" pos="0 0.08 0">
+          <joint name="FL_thigh_joint" axis="0 1 0" ref="0.6" range="-1.2 4.0"/>
+          <geom type="capsule" fromto="0 0 0 0 0 -0.25" size="0.025"/>
+          <body name="FL_calf" pos="0 0 -0.25">
+            <joint name="FL_calf_joint" axis="0 1 0" ref="-0.66" range="-3.0 0.5"/>
+            <geom type="capsule" fromto="0 0 0 0 0 -0.25" size="0.02"/>
+            <body name="FL_foot" pos="0 0 -0.25">
+              <geom type="sphere" size="0.025"/>
+              <site name="FL_foot_site" size="0.01"/>
+            </body>
+          </body>
+        </body>
+      </body>
+
+      <body name="RR_hip" pos="-0.21 -0.1157 0">
+        <joint name="RR_hip_joint" axis="-1 0 0" range="-0.87 0.87"/>
+        <geom type="capsule" fromto="0 0 0 0 -0.08 0" size="0.025"/>
+        <body name="RR_thigh" pos="0 -0.08 0">
+          <joint name="RR_thigh_joint" axis="0 1 0" ref="0.6" range="-1.2 4.0"/>
+          <geom type="capsule" fromto="0 0 0 0 0 -0.25" size="0.025"/>
+          <body name="RR_calf" pos="0 0 -0.25">
+            <joint name="RR_calf_joint" axis="0 1 0" ref="-0.66" range="-3.0 0.5"/>
+            <geom type="capsule" fromto="0 0 0 0 0 -0.25" size="0.02"/>
+            <body name="RR_foot" pos="0 0 -0.25">
+              <geom type="sphere" size="0.025"/>
+              <site name="RR_foot_site" size="0.01"/>
+            </body>
+          </body>
+        </body>
+      </body>
+
+      <body name="RL_hip" pos="-0.21 0.1157 0">
+        <joint name="RL_hip_joint" axis="1 0 0" range="-0.87 0.87"/>
+        <geom type="capsule" fromto="0 0 0 0 0.08 0" size="0.025"/>
+        <body name="RL_thigh" pos="0 0.08 0">
+          <joint name="RL_thigh_joint" axis="0 1 0" ref="0.6" range="-1.2 4.0"/>
+          <geom type="capsule" fromto="0 0 0 0 0 -0.25" size="0.025"/>
+          <body name="RL_calf" pos="0 0 -0.25">
+            <joint name="RL_calf_joint" axis="0 1 0" ref="-0.66" range="-3.0 0.5"/>
+            <geom type="capsule" fromto="0 0 0 0 0 -0.25" size="0.02"/>
+            <body name="RL_foot" pos="0 0 -0.25">
+              <geom type="sphere" size="0.025"/>
+              <site name="RL_foot_site" size="0.01"/>
+            </body>
+          </body>
+        </body>
+      </body>
+    </body>
+  </worldbody>
+</mujoco>

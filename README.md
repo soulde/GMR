@@ -527,6 +527,24 @@ You should see the visualization of the retargeted robot motion in a mujoco wind
 
 ### Visualize saved robot motion
 
+### Quadruped robot-to-robot retargeting
+
+Retarget a `motion_imitation` Laikago motion to Unitree Go2:
+
+```bash
+python scripts/motion_imitation_to_robot.py \
+  --motion_file assets/quadrupeds/motions/dog_pace.txt \
+  --source_robot laikago \
+  --robot unitree_go2 \
+  --save_path retargeting_data/go2/dog_pace.pkl \
+  --rate_limit
+```
+
+Add `--headless` to save without opening the MuJoCo viewer. Phase 1 requires
+MJCF models and semantic YAML configurations for both source and target
+robots. It transfers trunk and foot trajectories without contact inference,
+support-foot anchoring, or foot-slip correction.
+
 Visualize a single motions:
 
 ```bash

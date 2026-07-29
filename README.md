@@ -546,6 +546,38 @@ After launching the MuJoCo visualization window and clicking on it, you can use 
 * `]`: play the next motion
 * `space`: toggle play/pause
 
+### Rerun motion playback
+
+The Rerun player accepts one robot-motion `.pkl`/compatible `.npz` file or a
+folder searched recursively. Both model files are required: MJCF validates the
+free-root layout and ordered joints, while Rerun imports geometry and link
+transforms from URDF.
+
+```bash
+PYTHONPATH=. uv run python scripts/rerun_robot_motion.py \
+  --input <motion-file-or-folder> \
+  --mjcf <robot.xml> \
+  --urdf <robot.urdf>
+```
+
+Every folder motion has independent frame and duration timelines in the same
+recording. Joint values are not clamped to URDF limits, preserving the
+retargeted motion.
+
+To export without opening the Viewer:
+
+```bash
+PYTHONPATH=. uv run python scripts/rerun_robot_motion.py \
+  --input <motion.pkl> \
+  --mjcf <robot.xml> \
+  --urdf <robot.urdf> \
+  --save /tmp/robot-motion.rrd \
+  --no-spawn
+```
+
+`--no-spawn` requires `--save`. Omit it to open the Viewer; `--save` may also
+be used while the Viewer is open.
+
 ## Speed Benchmark
 
 | CPU | Retargeting Speed |

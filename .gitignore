@@ -79,6 +79,7 @@ session*.json
 *.temp
 .tmp/
 .temp/
+.worktrees/
 
 # Build artifacts
 build/

@@ -1,10 +1,13 @@
 import json
+import pickle
 
 import mujoco
+import numpy as np
 import pytest
 
 from general_motion_retargeting.retarget_export import (
     ensure_joint_contract,
+    export_retarget_motion,
     export_paths,
     scalar_joint_names,
 )
@@ -101,3 +104,98 @@ def test_joint_contract_rejects_existing_mismatch(tmp_path):
 
     with pytest.raises(ValueError, match="does not match"):
         ensure_joint_contract(path, "dr02", ("hip", "knee"))
+
+
+def two_joint_qpos():
+    return np.asarray(
+        [
+            [0.0, 0.0, 1.0, 1.0, 0.0, 0.0, 0.0, 0.1, 0.2],
+            [0.5, 0.0, 1.0, 2**-0.5, 0.0, 0.0, 2**-0.5, 0.3, 0.6],
+        ]
+    )
+
+
+def test_export_retarget_motion_writes_all_artifacts(tmp_path):
+    model = model_from_joints(
+        "<joint name='hip' type='hinge'/><joint name='knee' type='slide'/>"
+    )
+
+    paths = export_retarget_motion(
+        model,
+        "dr02",
+        "/data/walk.npz",
+        10.0,
+        two_joint_qpos(),
+        output_root=tmp_path,
+    )
+
+    with paths.motion.open("rb") as stream:
+        pkl = pickle.load(stream)
+    assert set(pkl) == {
+        "fps",
+        "root_pos",
+        "root_rot",
+        "dof_pos",
+        "local_body_pos",
+        "link_body_list",
+    }
+    np.testing.assert_allclose(pkl["root_rot"][0], [0.0, 0.0, 0.0, 1.0])
+    np.testing.assert_allclose(pkl["dof_pos"], [[0.1, 0.2], [0.3, 0.6]])
+
+    with np.load(paths.dataset) as dataset:
+        assert set(dataset.files) == {
+            "fps",
+            "root_pos",
+            "root_quat",
+            "root_lin_vel",
+            "root_ang_vel",
+            "joint_pos",
+            "joint_vel",
+            "joint_names",
+        }
+        assert dataset["joint_names"].tolist() == ["hip", "knee"]
+        np.testing.assert_allclose(dataset["root_quat"][0], [0.0, 0.0, 0.0, 1.0])
+        np.testing.assert_allclose(dataset["root_lin_vel"], [[5.0, 0.0, 0.0]] * 2)
+        np.testing.assert_allclose(dataset["joint_vel"], [[2.0, 4.0]] * 2)
+        np.testing.assert_allclose(
+            dataset["root_ang_vel"], [[0.0, 0.0, 5.0 * np.pi]] * 2
+        )
+
+    csv = np.loadtxt(paths.csv, delimiter=",")
+    assert csv.shape == (2, 9)
+    np.testing.assert_allclose(csv[:, 7:], [[0.1, 0.2], [0.3, 0.6]])
+
+
+def test_csv_downsamples_motion_above_30_fps(tmp_path):
+    model = model_from_joints("<joint name='hip' type='hinge'/>")
+    qpos = np.repeat(two_joint_qpos()[:1, :8], 4, axis=0)
+    qpos[:, 0] = np.arange(4)
+
+    paths = export_retarget_motion(
+        model, "dr02", "run.npz", 60.0, qpos, output_root=tmp_path
+    )
+
+    csv = np.loadtxt(paths.csv, delimiter=",")
+    np.testing.assert_allclose(csv[:, 0], [0.0, 2.0])
+
+
+@pytest.mark.parametrize(
+    ("fps", "qpos", "message"),
+    [
+        (0.0, two_joint_qpos(), "positive finite fps"),
+        (30.0, np.empty((0, 9)), "at least one frame"),
+        (30.0, np.zeros((2, 8)), "qpos"),
+        (30.0, np.full((2, 9), np.nan), "finite"),
+    ],
+)
+def test_export_retarget_motion_rejects_invalid_motion(
+    tmp_path, fps, qpos, message
+):
+    model = model_from_joints(
+        "<joint name='hip' type='hinge'/><joint name='knee' type='slide'/>"
+    )
+
+    with pytest.raises(ValueError, match=message):
+        export_retarget_motion(
+            model, "dr02", "bad.npz", fps, qpos, output_root=tmp_path
+        )

@@ -286,11 +286,31 @@ You should be able to see the retargeted robot motion in a mujoco window.
 Retarget a single motion:
 
 ```bash
-python scripts/smplx_to_robot.py --smplx_file <path_to_smplx_data> --robot <path_to_robot_data> --save_path <path_to_save_robot_data.pkl> --rate_limit
+PYTHONPATH=. uv run python scripts/smplx_to_robot.py \
+  --smplx_file <path_to_smplx_data> \
+  --robot <robot_name> \
+  --no_viewer \
+  --save
 ```
 
-By default you should see the visualization of the retargeted robot motion in a mujoco window.
-If you want to record video, add `--record_video` and `--video_path <your_video_path,mp4>`.
+`--save` writes all artifacts to a fixed, robot-scoped directory. For an input
+named `walk.npz`, the output is:
+
+```text
+retarget_data/<robot_name>/
+├── joints.json
+├── motions/walk.pkl
+├── datasets/walk.npz
+└── beyondmimic/walk.csv
+```
+
+All motions for one robot share the same `joints.json`. GMR refuses to export
+if its current MuJoCo joint order differs from the existing contract. The PKL
+is the native GMR motion, the NPZ contains generic training states and
+velocities, and the CSV uses the BeyondMimic column layout.
+
+Without `--no_viewer`, you should see the retargeted motion in a MuJoCo window.
+If you want to record video, add `--record_video`.
 
 - `--rate_limit` is used to limit the rate of the retargeted robot motion to keep the same as the human motion. If you want it as fast as possible, remove `--rate_limit`.
 

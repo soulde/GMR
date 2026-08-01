@@ -139,3 +139,29 @@ def test_external_config_applies_global_offsets_and_initial_pose(tmp_path):
     assert retarget.configuration.data.qpos[
         retarget.model.joint("elbow").qposadr[0]
     ] == pytest.approx(0.25)
+
+
+def test_external_config_can_disable_preserved_global_offsets(tmp_path):
+    xml, config_path = external_site_robot(tmp_path)
+    config = json.loads(config_path.read_text())
+    config["use_global_position_offsets"] = False
+    config_path.write_text(json.dumps(config))
+    retarget = GeneralMotionRetargeting(
+        src_human="smplx",
+        tgt_robot="external",
+        robot_xml_path=xml,
+        ik_config_path=config_path,
+        verbose=False,
+    )
+    identity = np.array([1.0, 0.0, 0.0, 0.0])
+    root_position = np.array([1.0, 2.0, 3.0])
+    retarget.update_targets(
+        {
+            "pelvis": (root_position, identity.copy()),
+            "hand": (root_position, identity.copy()),
+        }
+    )
+
+    np.testing.assert_allclose(
+        retarget.scaled_human_data["hand"][0], root_position
+    )

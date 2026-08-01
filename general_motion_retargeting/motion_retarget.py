@@ -126,6 +126,9 @@ class GeneralMotionRetargeting:
         self.use_ik_match_table1 = ik_config["use_ik_match_table1"]
         self.use_ik_match_table2 = ik_config["use_ik_match_table2"]
         self.human_scale_table = ik_config["human_scale_table"]
+        self.use_global_position_offsets = ik_config.get(
+            "use_global_position_offsets", True
+        )
         self.global_position_offsets = {
             name: np.asarray(offset, dtype=float)
             for name, offset in ik_config.get(
@@ -226,9 +229,10 @@ class GeneralMotionRetargeting:
         human_data = self.to_numpy(human_data)
         human_data = self.scale_human_data(human_data, self.human_root_name, self.human_scale_table)
         human_data = self.offset_human_data(human_data, self.pos_offsets1, self.rot_offsets1)
-        human_data = self.offset_human_data_global(
-            human_data, self.global_position_offsets
-        )
+        if self.use_global_position_offsets:
+            human_data = self.offset_human_data_global(
+                human_data, self.global_position_offsets
+            )
         human_data = self.apply_ground_offset(human_data)
         if offset_to_ground:
             human_data = self.offset_human_data_to_ground(human_data)

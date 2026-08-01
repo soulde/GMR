@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 import argparse
+from dataclasses import dataclass
 from pathlib import Path
 import pickle
 import time
@@ -20,6 +21,18 @@ from general_motion_retargeting.gmr_debug_visualizer import (
     transform_full_reference_frame,
     transform_reference_frame,
 )
+from general_motion_retargeting.params import IK_CONFIG_DICT, ROBOT_XML_DICT
+from general_motion_retargeting.retarget_export import load_motion_manifest
+
+
+REPOSITORY_ROOT = Path(__file__).resolve().parents[1]
+
+
+@dataclass(frozen=True)
+class ResolvedViewerInputs:
+    reference: Path
+    mjcf: Path
+    ik_config: Path
 
 
 def parse_height_offset(value: str) -> str | float:
@@ -34,9 +47,9 @@ def parse_height_offset(value: str) -> str | float:
 def build_parser() -> argparse.ArgumentParser:
     parser = argparse.ArgumentParser(description=__doc__)
     parser.add_argument("--motion", type=Path, required=True)
-    parser.add_argument("--reference", type=Path, required=True)
-    parser.add_argument("--mjcf", type=Path, required=True)
-    parser.add_argument("--ik-config", type=Path, required=True)
+    parser.add_argument("--reference", type=Path)
+    parser.add_argument("--mjcf", type=Path)
+    parser.add_argument("--ik-config", type=Path)
     parser.add_argument("--height-offset", default="auto")
     parser.add_argument("--actual-human-height", type=float)
     parser.add_argument(
@@ -53,6 +66,55 @@ def build_parser() -> argparse.ArgumentParser:
     parser.add_argument("--headless", action="store_true")
     parser.add_argument("--max-frames", type=int)
     return parser
+
+
+def _existing_path(path: Path, label: str) -> Path:
+    resolved = path.resolve()
+    if not resolved.is_file():
+        raise FileNotFoundError(f"{label} not found: {resolved}")
+    return resolved
+
+
+def resolve_viewer_inputs(
+    args: argparse.Namespace,
+    *,
+    repository_root: str | Path = REPOSITORY_ROOT,
+) -> ResolvedViewerInputs:
+    _existing_path(args.motion, "motion")
+    explicit = (args.reference, args.mjcf, args.ik_config)
+    entry = None
+    if not all(value is not None for value in explicit):
+        entry = load_motion_manifest(
+            args.motion,
+            repository_root=repository_root,
+            require_reference=args.reference is None,
+        )
+
+    if args.reference is not None:
+        reference = _existing_path(args.reference, "reference")
+    else:
+        assert entry is not None and entry.reference is not None
+        reference = entry.reference
+
+    if args.mjcf is not None:
+        mjcf = _existing_path(args.mjcf, "MJCF")
+    else:
+        assert entry is not None
+        model_path = ROBOT_XML_DICT.get(entry.robot)
+        if model_path is None:
+            raise ValueError(f"unknown robot in motion manifest: {entry.robot}")
+        mjcf = _existing_path(Path(model_path), "inferred MJCF")
+
+    if args.ik_config is not None:
+        ik_config = _existing_path(args.ik_config, "IK config")
+    else:
+        assert entry is not None
+        config_path = IK_CONFIG_DICT["smplx"].get(entry.robot)
+        if config_path is None:
+            raise ValueError(f"unknown robot in SMPL-X IK configs: {entry.robot}")
+        ik_config = _existing_path(Path(config_path), "inferred IK config")
+
+    return ResolvedViewerInputs(reference, mjcf, ik_config)
 
 
 def load_motion(path: Path) -> dict:
@@ -175,15 +237,16 @@ def main(argv: list[str] | None = None) -> int:
     parser = build_parser()
     args = parser.parse_args(argv)
     try:
+        inputs = resolve_viewer_inputs(args)
         height_option = parse_height_offset(args.height_offset)
         motion = load_motion(args.motion)
         frames, reference_fps, detected_height, full_reference_edges = load_reference_frames(
-            args.reference, args.body_model_dir
+            inputs.reference, args.body_model_dir
         )
         frames = align_reference_frames(frames, len(motion["root_pos"]))
         actual_height = args.actual_human_height or detected_height
-        config = load_effective_ik_config(args.ik_config, actual_height)
-        model = mujoco.MjModel.from_xml_string(compose_scene_xml(args.mjcf))
+        config = load_effective_ik_config(inputs.ik_config, actual_height)
+        model = mujoco.MjModel.from_xml_string(compose_scene_xml(inputs.mjcf))
         data = mujoco.MjData(model)
         height_offset = (
             compute_height_offset(model, motion)
@@ -195,7 +258,7 @@ def main(argv: list[str] | None = None) -> int:
             model,
             config,
             robot_alpha=args.robot_alpha,
-            display_name=args.reference.stem,
+            display_name=inputs.reference.stem,
         )
         fps = float(motion["fps"] or reference_fps)
         frame_limit = args.max_frames

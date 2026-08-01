@@ -553,6 +553,20 @@ Visualize a single motions:
 python scripts/vis_robot_motion.py --robot <robot_name> --robot_motion_path <path_to_save_robot_data.pkl>
 ```
 
+To compare a newly exported robot motion with its source SMPL-X reference, pass
+only the motion path to the debug viewer:
+
+```bash
+PYTHONPATH=. uv run python scripts/vis_gmr_debug.py \
+  --motion retarget_data/dr02/motions/walk.pkl
+```
+
+`smplx_to_robot.py --save` updates `retarget_data/<robot>/manifest.json`
+automatically. The debug viewer uses that manifest to find the source motion and
+infer the robot MJCF and SMPL-X IK config. `--reference`, `--mjcf`, and
+`--ik-config` remain available as optional per-field overrides for legacy data
+or moved source files.
+
 If you want to record video, add `--record_video` and `--video_path <your_video_path,mp4>`.
 
 Visualize a folder of motions:

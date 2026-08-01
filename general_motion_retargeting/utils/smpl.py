@@ -1,3 +1,5 @@
+from pathlib import Path
+
 import numpy as np
 import smplx
 import torch
@@ -7,17 +9,33 @@ from scipy.interpolate import interp1d
 
 import general_motion_retargeting.utils.lafan_vendor.utils as utils
 
+
+def _smplx_model_extension(smplx_body_model_path, gender):
+    model_root = Path(smplx_body_model_path)
+    model_dir = (
+        model_root
+        if model_root.name.lower() == "smplx"
+        else model_root / "smplx"
+    )
+    stem = f"SMPLX_{str(gender).upper()}"
+    for extension in ("npz", "pkl"):
+        if (model_dir / f"{stem}.{extension}").is_file():
+            return extension
+    return "npz"
+
 def load_smpl_file(smpl_file):
     smpl_data = np.load(smpl_file, allow_pickle=True)
     return smpl_data
 
 def load_smplx_file(smplx_file, smplx_body_model_path):
     smplx_data = np.load(smplx_file, allow_pickle=True)
+    gender = str(smplx_data["gender"])
     body_model = smplx.create(
         smplx_body_model_path,
         "smplx",
-        gender=str(smplx_data["gender"]),
+        gender=gender,
         use_pca=False,
+        ext=_smplx_model_extension(smplx_body_model_path, gender),
     )
     # print(smplx_data["pose_body"].shape)
     # print(smplx_data["betas"].shape)
@@ -77,6 +95,7 @@ def load_gvhmr_pred_file(gvhmr_pred_file, smplx_body_model_path):
         "smplx",
         gender="neutral",
         use_pca=False,
+        ext=_smplx_model_extension(smplx_body_model_path, "neutral"),
     )
     
     num_frames = smpl_params_global['body_pose'].shape[0]

@@ -113,9 +113,25 @@ class GeneralMotionRetargeting:
         self.ik_match_table2 = ik_config["ik_match_table2"]
         self.human_root_name = ik_config["human_root_name"]
         self.robot_root_name = ik_config["robot_root_name"]
+        self.initialize_root_from_human = ik_config.get(
+            "initialize_root_from_human", False
+        )
+        self.initialization_retargets = ik_config.get(
+            "initialization_retargets", 1
+        )
+        self.initial_joint_positions = ik_config.get(
+            "initial_joint_positions", {}
+        )
+        self.root_initialized = False
         self.use_ik_match_table1 = ik_config["use_ik_match_table1"]
         self.use_ik_match_table2 = ik_config["use_ik_match_table2"]
         self.human_scale_table = ik_config["human_scale_table"]
+        self.global_position_offsets = {
+            name: np.asarray(offset, dtype=float)
+            for name, offset in ik_config.get(
+                "global_position_offsets", {}
+            ).items()
+        }
         self.ground = ik_config["ground_height"] * np.array([0, 0, 1])
 
         self.max_iter = 10
@@ -153,7 +169,7 @@ class GeneralMotionRetargeting:
             if pos_weight != 0 or rot_weight != 0:
                 task = mink.FrameTask(
                     frame_name=frame_name,
-                    frame_type="body",
+                    frame_type=self._resolve_frame_type(frame_name),
                     position_cost=pos_weight,
                     orientation_cost=rot_weight,
                     lm_damping=1,
@@ -171,7 +187,7 @@ class GeneralMotionRetargeting:
             if pos_weight != 0 or rot_weight != 0:
                 task = mink.FrameTask(
                     frame_name=frame_name,
-                    frame_type="body",
+                    frame_type=self._resolve_frame_type(frame_name),
                     position_cost=pos_weight,
                     orientation_cost=rot_weight,
                     lm_damping=1,
@@ -184,12 +200,35 @@ class GeneralMotionRetargeting:
                 self.tasks2.append(task)
                 self.task_errors2[task] = []
 
+    def _resolve_frame_type(self, frame_name: str) -> str:
+        body_id = mj.mj_name2id(
+            self.model, mj.mjtObj.mjOBJ_BODY, frame_name
+        )
+        site_id = mj.mj_name2id(
+            self.model, mj.mjtObj.mjOBJ_SITE, frame_name
+        )
+        if body_id >= 0 and site_id >= 0:
+            raise ValueError(
+                f"ambiguous MuJoCo frame {frame_name!r}: "
+                "name is both a body and site"
+            )
+        if body_id >= 0:
+            return "body"
+        if site_id >= 0:
+            return "site"
+        raise ValueError(
+            f"unknown MuJoCo body or site frame: {frame_name!r}"
+        )
+
   
     def update_targets(self, human_data, offset_to_ground=False):
         # scale human data in local frame
         human_data = self.to_numpy(human_data)
         human_data = self.scale_human_data(human_data, self.human_root_name, self.human_scale_table)
         human_data = self.offset_human_data(human_data, self.pos_offsets1, self.rot_offsets1)
+        human_data = self.offset_human_data_global(
+            human_data, self.global_position_offsets
+        )
         human_data = self.apply_ground_offset(human_data)
         if offset_to_ground:
             human_data = self.offset_human_data_to_ground(human_data)
@@ -211,6 +250,12 @@ class GeneralMotionRetargeting:
     def retarget(self, human_data, offset_to_ground=False):
         # Update the task targets
         self.update_targets(human_data, offset_to_ground)
+        initializing_root = (
+            self.initialize_root_from_human and not self.root_initialized
+        )
+        if initializing_root:
+            self._initialize_root_from_human_target()
+            self.root_initialized = True
 
         if self.use_ik_match_table1:
             # Solve the IK problem
@@ -254,7 +299,26 @@ class GeneralMotionRetargeting:
                 num_iter += 1
                 
             
-        return self.configuration.data.qpos.copy()
+        qpos = self.configuration.data.qpos.copy()
+        if initializing_root:
+            for _ in range(self.initialization_retargets - 1):
+                qpos = self.retarget(human_data, offset_to_ground)
+        return qpos
+
+    def _initialize_root_from_human_target(self):
+        if (
+            self.model.nq < 7
+            or self.model.njnt == 0
+            or self.model.jnt_type[0] != mj.mjtJoint.mjJNT_FREE
+        ):
+            return
+        for joint_name, joint_position in self.initial_joint_positions.items():
+            joint = self.model.joint(joint_name)
+            self.configuration.data.qpos[joint.qposadr[0]] = joint_position
+        root_pos, root_quat = self.scaled_human_data[self.human_root_name]
+        self.configuration.data.qpos[:3] = root_pos
+        self.configuration.data.qpos[3:7] = root_quat
+        mj.mj_forward(self.model, self.configuration.data)
 
 
     def error1(self):
@@ -339,6 +403,13 @@ class GeneralMotionRetargeting:
             pos, quat = human_data[body_name]
             offset_human_data[body_name] = [pos, quat]
             offset_human_data[body_name][0] = pos - np.array([0, 0, lowest_pos]) + np.array([0, 0, ground_offset])
+        return offset_human_data
+
+    def offset_human_data_global(self, human_data, global_position_offsets):
+        offset_human_data = {}
+        for body_name, (pos, quat) in human_data.items():
+            offset = global_position_offsets.get(body_name, 0.0)
+            offset_human_data[body_name] = [pos + offset, quat]
         return offset_human_data
 
     def set_ground_offset(self, ground_offset):

@@ -15,27 +15,6 @@ from general_motion_retargeting.utils.smpl import (
 
 
 HERE = pathlib.Path(__file__).parent
-ROBOT_CHOICES = [
-    "unitree_g1",
-    "unitree_g1_with_hands",
-    "unitree_h1",
-    "unitree_h1_2",
-    "booster_t1",
-    "booster_t1_29dof",
-    "stanford_toddy",
-    "fourier_n1",
-    "engineai_pm01",
-    "kuavo_s45",
-    "hightorque_hi",
-    "galaxea_r1pro",
-    "berkeley_humanoid_lite",
-    "booster_k1",
-    "pnd_adam_lite",
-    "openloong",
-    "tienkung",
-    "fourier_gr3",
-    "dr02",
-]
 
 
 def build_parser() -> argparse.ArgumentParser:
@@ -49,7 +28,17 @@ def build_parser() -> argparse.ArgumentParser:
             "Male1General_c3d/General_A1_-_Stand_stageii.npz"
         ),
     )
-    parser.add_argument("--robot", choices=ROBOT_CHOICES, default="unitree_g1")
+    parser.add_argument("--robot", default="unitree_g1")
+    parser.add_argument(
+        "--mjcf",
+        type=pathlib.Path,
+        help="Explicit robot MJCF path for an external robot definition.",
+    )
+    parser.add_argument(
+        "--ik-config",
+        type=pathlib.Path,
+        help="Explicit IK config path for an external robot definition.",
+    )
     parser.add_argument(
         "--save",
         action="store_true",
@@ -82,6 +71,11 @@ def main(argv: list[str] | None = None) -> int:
     args = parser.parse_args(argv)
     if args.save and args.loop:
         parser.error("--save cannot be combined with --loop")
+    if args.mjcf is not None and not args.no_viewer:
+        parser.error(
+            "external --mjcf currently requires --no_viewer; "
+            "use vis_gmr_debug.py for playback"
+        )
 
     smplx_folder = HERE / ".." / "assets" / "body_models"
     smplx_data, body_model, smplx_output, actual_human_height = load_smplx_file(
@@ -90,11 +84,16 @@ def main(argv: list[str] | None = None) -> int:
     frames, aligned_fps = get_smplx_data_offline_fast(
         smplx_data, body_model, smplx_output, tgt_fps=30
     )
-    retarget = GMR(
+    retarget_kwargs = dict(
         actual_human_height=actual_human_height,
         src_human="smplx",
         tgt_robot=args.robot,
     )
+    if args.mjcf is not None:
+        retarget_kwargs["robot_xml_path"] = args.mjcf
+    if args.ik_config is not None:
+        retarget_kwargs["ik_config_path"] = args.ik_config
+    retarget = GMR(**retarget_kwargs)
 
     viewer = None
     if not args.no_viewer:

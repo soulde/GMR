@@ -312,6 +312,23 @@ velocities, and the CSV uses the BeyondMimic column layout.
 Without `--no_viewer`, you should see the retargeted motion in a MuJoCo window.
 If you want to record video, add `--record_video`.
 
+External robot packages can reuse this entry point without registering their
+private assets in GMR. Pass the robot identifier together with explicit MJCF
+and IK config paths:
+
+```bash
+PYTHONPATH=. uv run python scripts/smplx_to_robot.py \
+  --smplx_file <path_to_smplx_data> \
+  --robot <external_robot_name> \
+  --mjcf <path_to_robot.xml> \
+  --ik-config <path_to_smplx_ik_config.json> \
+  --no_viewer \
+  --save
+```
+
+Explicit external MJCF playback is currently headless in this command. Use
+`scripts/vis_gmr_debug.py` with the same explicit paths to inspect the result.
+
 - `--rate_limit` is used to limit the rate of the retargeted robot motion to keep the same as the human motion. If you want it as fast as possible, remove `--rate_limit`.
 
 Retarget a folder of motions:

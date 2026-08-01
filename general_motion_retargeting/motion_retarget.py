@@ -3,9 +3,41 @@ import mink
 import mujoco as mj
 import numpy as np
 import json
+import pathlib
 from scipy.spatial.transform import Rotation as R
 from .params import ROBOT_XML_DICT, IK_CONFIG_DICT
 from rich import print
+
+
+def _existing_path(value, *, label):
+    path = pathlib.Path(value).expanduser()
+    if not path.is_file():
+        raise FileNotFoundError(f"{label} does not exist: {path}")
+    return path
+
+
+def resolve_robot_xml(tgt_robot, explicit=None):
+    if explicit is not None:
+        return _existing_path(explicit, label="robot MJCF")
+    try:
+        return pathlib.Path(ROBOT_XML_DICT[tgt_robot])
+    except KeyError as error:
+        raise KeyError(
+            f"unknown robot {tgt_robot!r}; pass robot_xml_path/--mjcf"
+        ) from error
+
+
+def resolve_ik_config(src_human, tgt_robot, explicit=None):
+    if explicit is not None:
+        return _existing_path(explicit, label="IK config")
+    try:
+        return pathlib.Path(IK_CONFIG_DICT[src_human][tgt_robot])
+    except KeyError as error:
+        raise KeyError(
+            f"no IK config for {src_human!r}/{tgt_robot!r}; "
+            "pass ik_config_path/--ik-config"
+        ) from error
+
 
 class GeneralMotionRetargeting:
     """General Motion Retargeting (GMR).
@@ -15,6 +47,8 @@ class GeneralMotionRetargeting:
         src_human: str,
         tgt_robot: str,
         actual_human_height: float = None,
+        ik_config_path: str | pathlib.Path | None = None,
+        robot_xml_path: str | pathlib.Path | None = None,
         solver: str="daqp", # change from "quadprog" to "daqp".
         damping: float=5e-1, # change from 1e-1 to 1e-2.
         verbose: bool=True,
@@ -22,7 +56,7 @@ class GeneralMotionRetargeting:
     ) -> None:
 
         # load the robot model
-        self.xml_file = str(ROBOT_XML_DICT[tgt_robot])
+        self.xml_file = str(resolve_robot_xml(tgt_robot, robot_xml_path))
         if verbose:
             print("Use robot model: ", self.xml_file)
         self.model = mj.MjModel.from_xml_path(self.xml_file)
@@ -54,10 +88,14 @@ class GeneralMotionRetargeting:
                 print(f"Motor ID {i}: {motor_name}")
 
         # Load the IK config
-        with open(IK_CONFIG_DICT[src_human][tgt_robot]) as f:
-            ik_config = json.load(f)
+        resolved_ik_config = resolve_ik_config(
+            src_human, tgt_robot, ik_config_path
+        )
+        with resolved_ik_config.open() as f:
+            loaded_config = json.load(f)
+        ik_config = loaded_config.get("config", loaded_config)
         if verbose:
-            print("Use IK config: ", IK_CONFIG_DICT[src_human][tgt_robot])
+            print("Use IK config: ", resolved_ik_config)
         
         # compute the scale ratio based on given human height and the assumption in the IK config
         if actual_human_height is not None:

@@ -63,8 +63,14 @@ def test_main_exports_all_retargeted_frames(monkeypatch):
         smplx_to_robot,
         "export_retarget_motion",
         lambda *args, **kwargs: (
-            calls.append((args, kwargs))
-            or ExportPaths("joints.json", "walk.pkl", "walk.npz", "walk.csv")
+                calls.append((args, kwargs))
+            or ExportPaths(
+                "joints.json",
+                "manifest.json",
+                "walk.pkl",
+                "walk.npz",
+                "walk.csv",
+            )
         ),
     )
 

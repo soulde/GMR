@@ -12,6 +12,9 @@ import numpy as np
 from scipy.spatial.transform import Rotation
 
 
+REPOSITORY_ROOT = pathlib.Path(__file__).resolve().parents[1]
+
+
 @dataclass(frozen=True)
 class ExportPaths:
     joints: pathlib.Path
@@ -285,6 +288,8 @@ def export_retarget_motion(
     qpos_frames: np.ndarray,
     *,
     output_root: str | pathlib.Path = pathlib.Path("retarget_data"),
+    repository_root: str | pathlib.Path = REPOSITORY_ROOT,
+    cwd: str | pathlib.Path | None = None,
 ) -> ExportPaths:
     fps = float(fps)
     qpos = np.asarray(qpos_frames, dtype=float)
@@ -361,4 +366,11 @@ def export_retarget_motion(
     finally:
         temporary.unlink(missing_ok=True)
 
+    update_motion_manifest(
+        paths,
+        robot,
+        source_path,
+        repository_root=repository_root,
+        cwd=cwd,
+    )
     return paths

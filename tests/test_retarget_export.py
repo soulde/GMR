@@ -289,14 +289,18 @@ def test_export_retarget_motion_writes_all_artifacts(tmp_path):
     model = model_from_joints(
         "<joint name='hip' type='hinge'/><joint name='knee' type='slide'/>"
     )
+    source = tmp_path / "sources" / "walk.npz"
+    source.parent.mkdir()
+    source.touch()
 
     paths = export_retarget_motion(
         model,
         "dr02",
-        "/data/walk.npz",
+        source,
         10.0,
         two_joint_qpos(),
-        output_root=tmp_path,
+        output_root=tmp_path / "retarget_data",
+        repository_root=tmp_path,
     )
 
     with paths.motion.open("rb") as stream:
@@ -334,6 +338,37 @@ def test_export_retarget_motion_writes_all_artifacts(tmp_path):
     csv = np.loadtxt(paths.csv, delimiter=",")
     assert csv.shape == (2, 9)
     np.testing.assert_allclose(csv[:, 7:], [[0.1, 0.2], [0.3, 0.6]])
+
+    entry = load_motion_manifest(paths.motion, repository_root=tmp_path)
+    assert paths.manifest == tmp_path / "retarget_data" / "dr02" / "manifest.json"
+    assert entry.reference == source.resolve()
+
+
+def test_export_does_not_publish_manifest_when_artifact_write_fails(
+    tmp_path, monkeypatch
+):
+    model = model_from_joints("<joint name='hip' type='hinge'/>")
+    source = tmp_path / "walk.npz"
+    source.touch()
+    expected = export_paths("dr02", source, tmp_path / "retarget_data")
+    qpos = two_joint_qpos()[:, :8]
+
+    def fail_savez(*_args, **_kwargs):
+        raise OSError("disk full")
+
+    monkeypatch.setattr(np, "savez", fail_savez)
+    with pytest.raises(OSError, match="disk full"):
+        export_retarget_motion(
+            model,
+            "dr02",
+            source,
+            30.0,
+            qpos,
+            output_root=tmp_path / "retarget_data",
+            repository_root=tmp_path,
+        )
+
+    assert not expected.manifest.exists()
 
 
 def test_csv_downsamples_motion_above_30_fps(tmp_path):

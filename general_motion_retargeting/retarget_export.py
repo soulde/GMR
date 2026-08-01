@@ -15,9 +15,18 @@ from scipy.spatial.transform import Rotation
 @dataclass(frozen=True)
 class ExportPaths:
     joints: pathlib.Path
+    manifest: pathlib.Path
     motion: pathlib.Path
     dataset: pathlib.Path
     csv: pathlib.Path
+
+
+@dataclass(frozen=True)
+class ManifestEntry:
+    robot: str
+    reference: pathlib.Path | None
+    dataset: pathlib.Path
+    beyondmimic: pathlib.Path
 
 
 def export_paths(
@@ -29,9 +38,152 @@ def export_paths(
     stem = pathlib.Path(source_path).stem
     return ExportPaths(
         joints=base / "joints.json",
+        manifest=base / "manifest.json",
         motion=base / "motions" / f"{stem}.pkl",
         dataset=base / "datasets" / f"{stem}.npz",
         csv=base / "beyondmimic" / f"{stem}.csv",
+    )
+
+
+def encode_source_path(
+    source_path: str | pathlib.Path,
+    repository_root: str | pathlib.Path,
+    *,
+    cwd: str | pathlib.Path | None = None,
+) -> dict[str, str]:
+    source = pathlib.Path(source_path)
+    if not source.is_absolute():
+        source = pathlib.Path(cwd or pathlib.Path.cwd()) / source
+    source = source.resolve()
+    repository = pathlib.Path(repository_root).resolve()
+    try:
+        relative = source.relative_to(repository)
+    except ValueError:
+        return {"path": source.as_posix(), "base": "absolute"}
+    return {"path": relative.as_posix(), "base": "repository"}
+
+
+def _write_json_atomic(path: pathlib.Path, payload: dict) -> None:
+    path.parent.mkdir(parents=True, exist_ok=True)
+    with tempfile.NamedTemporaryFile(
+        "w",
+        encoding="utf-8",
+        dir=path.parent,
+        prefix=f".{path.name}.",
+        suffix=".tmp",
+        delete=False,
+    ) as stream:
+        temporary_path = pathlib.Path(stream.name)
+        json.dump(payload, stream, indent=2)
+        stream.write("\n")
+    try:
+        temporary_path.replace(path)
+    finally:
+        temporary_path.unlink(missing_ok=True)
+
+
+def update_motion_manifest(
+    paths: ExportPaths,
+    robot: str,
+    source_path: str | pathlib.Path,
+    *,
+    repository_root: str | pathlib.Path,
+    cwd: str | pathlib.Path | None = None,
+) -> pathlib.Path:
+    if paths.manifest.exists():
+        try:
+            with paths.manifest.open(encoding="utf-8") as stream:
+                manifest = json.load(stream)
+        except (OSError, json.JSONDecodeError) as error:
+            raise ValueError(f"invalid motion manifest: {paths.manifest}") from error
+        if manifest.get("format_version") != 1 or manifest.get("robot") != robot:
+            raise ValueError(
+                f"existing motion manifest does not match robot/version: {paths.manifest}"
+            )
+        motions = manifest.get("motions")
+        if not isinstance(motions, dict):
+            raise ValueError(f"invalid motions mapping in manifest: {paths.manifest}")
+    else:
+        motions = {}
+
+    robot_root = paths.manifest.parent
+    motion_key = paths.motion.relative_to(robot_root).as_posix()
+    motions[motion_key] = {
+        "source": encode_source_path(
+            source_path, repository_root, cwd=cwd
+        ),
+        "dataset": paths.dataset.relative_to(robot_root).as_posix(),
+        "beyondmimic": paths.csv.relative_to(robot_root).as_posix(),
+    }
+    payload = {
+        "format_version": 1,
+        "robot": robot,
+        "motions": dict(sorted(motions.items())),
+    }
+    _write_json_atomic(paths.manifest, payload)
+    return paths.manifest
+
+
+def load_motion_manifest(
+    motion_path: str | pathlib.Path,
+    *,
+    repository_root: str | pathlib.Path,
+    require_reference: bool = True,
+) -> ManifestEntry:
+    motion = pathlib.Path(motion_path).resolve()
+    robot_root = motion.parent.parent
+    manifest_path = robot_root / "manifest.json"
+    if not manifest_path.is_file():
+        raise FileNotFoundError(f"motion manifest not found: {manifest_path}")
+    try:
+        with manifest_path.open(encoding="utf-8") as stream:
+            manifest = json.load(stream)
+    except (OSError, json.JSONDecodeError) as error:
+        raise ValueError(f"invalid motion manifest: {manifest_path}") from error
+
+    if manifest.get("format_version") != 1:
+        raise ValueError(f"unsupported motion manifest version: {manifest_path}")
+    robot = manifest.get("robot")
+    motions = manifest.get("motions")
+    if not isinstance(robot, str) or not robot or not isinstance(motions, dict):
+        raise ValueError(f"invalid motion manifest schema: {manifest_path}")
+    try:
+        motion_key = motion.relative_to(robot_root).as_posix()
+    except ValueError as error:
+        raise ValueError(f"motion is outside manifest robot directory: {motion}") from error
+    entry = motions.get(motion_key)
+    if not isinstance(entry, dict):
+        raise ValueError(f"motion entry not found in manifest: {motion_key}")
+
+    source = entry.get("source")
+    if not isinstance(source, dict):
+        raise ValueError(f"invalid source entry for motion: {motion_key}")
+    source_path = source.get("path")
+    source_base = source.get("base")
+    if not isinstance(source_path, str) or source_base not in {
+        "repository",
+        "absolute",
+    }:
+        raise ValueError(f"unsupported source base for motion: {motion_key}")
+    if source_base == "repository":
+        resolved_source = pathlib.Path(repository_root).resolve() / source_path
+    else:
+        resolved_source = pathlib.Path(source_path)
+        if not resolved_source.is_absolute():
+            raise ValueError(f"absolute source path is not absolute: {source_path}")
+    resolved_source = resolved_source.resolve()
+    if require_reference and not resolved_source.is_file():
+        raise FileNotFoundError(f"source motion not found: {resolved_source}")
+
+    dataset = entry.get("dataset")
+    beyondmimic = entry.get("beyondmimic")
+    if not isinstance(dataset, str) or not isinstance(beyondmimic, str):
+        raise ValueError(f"invalid artifact paths for motion: {motion_key}")
+    return ManifestEntry(
+        robot=robot,
+        reference=resolved_source if require_reference else None,
+        dataset=(robot_root / dataset).resolve(),
+        beyondmimic=(robot_root / beyondmimic).resolve(),
     )
 
 

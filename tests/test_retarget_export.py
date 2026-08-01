@@ -6,10 +6,13 @@ import numpy as np
 import pytest
 
 from general_motion_retargeting.retarget_export import (
+    encode_source_path,
     ensure_joint_contract,
     export_retarget_motion,
     export_paths,
+    load_motion_manifest,
     scalar_joint_names,
+    update_motion_manifest,
 )
 
 
@@ -40,6 +43,173 @@ def test_export_paths_use_robot_and_source_stem(tmp_path):
     assert paths.motion == tmp_path / "dr02" / "motions" / "walk_stageii.pkl"
     assert paths.dataset == tmp_path / "dr02" / "datasets" / "walk_stageii.npz"
     assert paths.csv == tmp_path / "dr02" / "beyondmimic" / "walk_stageii.csv"
+
+
+def test_encode_source_inside_repository_is_relative(tmp_path):
+    source = tmp_path / "motion_data" / "walk.npz"
+    source.parent.mkdir()
+    source.touch()
+
+    assert encode_source_path(source, tmp_path) == {
+        "path": "motion_data/walk.npz",
+        "base": "repository",
+    }
+
+
+def test_encode_external_source_is_absolute(tmp_path):
+    repository = tmp_path / "repository"
+    repository.mkdir()
+    source = tmp_path / "external" / "walk.npz"
+
+    assert encode_source_path(source, repository) == {
+        "path": source.resolve().as_posix(),
+        "base": "absolute",
+    }
+
+
+def test_encode_relative_source_uses_working_directory(tmp_path):
+    repository = tmp_path / "repository"
+    source = repository / "inputs" / "walk.npz"
+    source.parent.mkdir(parents=True)
+    source.touch()
+
+    assert encode_source_path("inputs/walk.npz", repository, cwd=repository) == {
+        "path": "inputs/walk.npz",
+        "base": "repository",
+    }
+
+
+def test_manifest_preserves_motions_and_sorts_keys(tmp_path):
+    repository = tmp_path / "repository"
+    source_a = repository / "sources" / "a.npz"
+    source_b = repository / "sources" / "b.npz"
+    source_a.parent.mkdir(parents=True)
+    source_a.touch()
+    source_b.touch()
+    paths_b = export_paths("dr02", source_b, repository / "retarget_data")
+    paths_a = export_paths("dr02", source_a, repository / "retarget_data")
+
+    update_motion_manifest(paths_b, "dr02", source_b, repository_root=repository)
+    update_motion_manifest(paths_a, "dr02", source_a, repository_root=repository)
+
+    manifest = json.loads(paths_a.manifest.read_text())
+    assert manifest["format_version"] == 1
+    assert manifest["robot"] == "dr02"
+    assert list(manifest["motions"]) == ["motions/a.pkl", "motions/b.pkl"]
+    assert manifest["motions"]["motions/a.pkl"] == {
+        "source": {"path": "sources/a.npz", "base": "repository"},
+        "dataset": "datasets/a.npz",
+        "beyondmimic": "beyondmimic/a.csv",
+    }
+
+
+def test_manifest_replaces_same_motion_source(tmp_path):
+    repository = tmp_path / "repository"
+    repository.mkdir()
+    first = tmp_path / "first" / "walk.npz"
+    second = tmp_path / "second" / "walk.npz"
+    paths = export_paths("dr02", first, repository / "retarget_data")
+
+    update_motion_manifest(paths, "dr02", first, repository_root=repository)
+    update_motion_manifest(paths, "dr02", second, repository_root=repository)
+
+    manifest = json.loads(paths.manifest.read_text())
+    assert manifest["motions"]["motions/walk.pkl"]["source"] == {
+        "path": second.resolve().as_posix(),
+        "base": "absolute",
+    }
+
+
+@pytest.mark.parametrize(
+    "header",
+    [
+        {"format_version": 2, "robot": "dr02", "motions": {}},
+        {"format_version": 1, "robot": "unitree_g1", "motions": {}},
+    ],
+)
+def test_manifest_rejects_incompatible_header(tmp_path, header):
+    repository = tmp_path / "repository"
+    source = repository / "walk.npz"
+    paths = export_paths("dr02", source, repository / "retarget_data")
+    paths.manifest.parent.mkdir(parents=True)
+    paths.manifest.write_text(json.dumps(header))
+
+    with pytest.raises(ValueError, match="manifest"):
+        update_motion_manifest(paths, "dr02", source, repository_root=repository)
+
+
+def test_load_motion_manifest_resolves_paths(tmp_path):
+    repository = tmp_path / "repository"
+    source = repository / "sources" / "walk.npz"
+    source.parent.mkdir(parents=True)
+    source.touch()
+    paths = export_paths("dr02", source, repository / "retarget_data")
+    paths.motion.parent.mkdir(parents=True)
+    paths.motion.touch()
+    update_motion_manifest(paths, "dr02", source, repository_root=repository)
+
+    entry = load_motion_manifest(paths.motion, repository_root=repository)
+
+    assert entry.robot == "dr02"
+    assert entry.reference == source.resolve()
+    assert entry.dataset == paths.dataset.resolve()
+    assert entry.beyondmimic == paths.csv.resolve()
+
+
+def test_load_motion_manifest_can_skip_stale_reference(tmp_path):
+    repository = tmp_path / "repository"
+    source = repository / "missing.npz"
+    paths = export_paths("dr02", source, repository / "retarget_data")
+    paths.motion.parent.mkdir(parents=True)
+    paths.motion.touch()
+    update_motion_manifest(paths, "dr02", source, repository_root=repository)
+
+    entry = load_motion_manifest(
+        paths.motion, repository_root=repository, require_reference=False
+    )
+
+    assert entry.reference is None
+
+
+def test_load_motion_manifest_rejects_missing_exact_entry(tmp_path):
+    repository = tmp_path / "repository"
+    source = repository / "walk.npz"
+    repository.mkdir()
+    source.touch()
+    paths = export_paths("dr02", source, repository / "retarget_data")
+    paths.motion.parent.mkdir(parents=True)
+    other_motion = paths.motion.with_name("other.pkl")
+    other_motion.touch()
+    update_motion_manifest(paths, "dr02", source, repository_root=repository)
+
+    with pytest.raises(ValueError, match="motion entry"):
+        load_motion_manifest(other_motion, repository_root=repository)
+
+
+def test_load_motion_manifest_rejects_unsupported_source_base(tmp_path):
+    repository = tmp_path / "repository"
+    motion = repository / "retarget_data" / "dr02" / "motions" / "walk.pkl"
+    motion.parent.mkdir(parents=True)
+    motion.touch()
+    manifest = motion.parent.parent / "manifest.json"
+    manifest.write_text(
+        json.dumps(
+            {
+                "format_version": 1,
+                "robot": "dr02",
+                "motions": {
+                    "motions/walk.pkl": {
+                        "source": {"path": "walk.npz", "base": "remote"},
+                        "dataset": "datasets/walk.npz",
+                        "beyondmimic": "beyondmimic/walk.csv",
+                    }
+                },
+            }
+        )
+    )
+
+    with pytest.raises(ValueError, match="source base"):
+        load_motion_manifest(motion, repository_root=repository)
 
 
 def test_scalar_joint_names_follow_qpos_addresses():

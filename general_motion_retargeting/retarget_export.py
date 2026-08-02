@@ -9,7 +9,7 @@ from typing import Sequence
 
 import mujoco
 import numpy as np
-from scipy.spatial.transform import Rotation
+from scipy.spatial.transform import Rotation, Slerp
 
 
 REPOSITORY_ROOT = pathlib.Path(__file__).resolve().parents[1]
@@ -22,6 +22,7 @@ class ExportPaths:
     motion: pathlib.Path
     dataset: pathlib.Path
     csv: pathlib.Path
+    bodies: pathlib.Path | None = None
 
 
 @dataclass(frozen=True)
@@ -45,6 +46,7 @@ def export_paths(
         motion=base / "motions" / f"{stem}.pkl",
         dataset=base / "datasets" / f"{stem}.npz",
         csv=base / "beyondmimic" / f"{stem}.csv",
+        bodies=base / "bodies.json",
     )
 
 
@@ -216,6 +218,58 @@ def _scalar_joint_addresses(model: mujoco.MjModel) -> tuple[int, ...]:
     return tuple(sorted(addresses))
 
 
+def articulation_body_names(model: mujoco.MjModel) -> tuple[str, ...]:
+    """Return the root and movable-link bodies in articulation order."""
+    scalar_joint_names(model)
+    ordered = [(int(model.jnt_qposadr[0]), int(model.jnt_bodyid[0]))]
+    ordered.extend(
+        (int(model.jnt_qposadr[joint_id]), int(model.jnt_bodyid[joint_id]))
+        for joint_id in range(1, model.njnt)
+    )
+    body_ids = []
+    for _, body_id in sorted(ordered):
+        if body_id not in body_ids:
+            body_ids.append(body_id)
+
+    names = []
+    for body_id in body_ids:
+        name = model.body(body_id).name
+        if not name:
+            raise ValueError("all exported articulation bodies must be named")
+        names.append(name)
+    return tuple(names)
+
+
+def _resolve_body_ids(
+    model: mujoco.MjModel,
+    body_names: Sequence[str] | None,
+) -> tuple[tuple[str, ...], tuple[int, ...]]:
+    required = articulation_body_names(model)
+    selected = tuple(body_names) if body_names is not None else required
+    if not selected:
+        raise ValueError("expected at least one exported body")
+    if len(set(selected)) != len(selected):
+        raise ValueError("exported body names must be unique")
+
+    body_ids = []
+    for name in selected:
+        body_id = mujoco.mj_name2id(model, mujoco.mjtObj.mjOBJ_BODY, name)
+        if body_id < 0:
+            raise ValueError(f"exported body does not exist in model: {name}")
+        body_ids.append(int(body_id))
+
+    root_body_id = int(model.jnt_bodyid[0])
+    if body_ids[0] != root_body_id:
+        raise ValueError("the free-root body must be first in the body contract")
+    missing = set(required).difference(selected)
+    if missing:
+        raise ValueError(
+            "body contract must include every movable body: "
+            + ", ".join(sorted(missing))
+        )
+    return selected, tuple(body_ids)
+
+
 def ensure_joint_contract(
     path: str | pathlib.Path,
     robot: str,
@@ -249,6 +303,26 @@ def ensure_joint_contract(
     temporary_path.replace(path)
 
 
+def ensure_body_contract(
+    path: str | pathlib.Path,
+    robot: str,
+    body_names: Sequence[str],
+) -> None:
+    path = pathlib.Path(path)
+    contract = {
+        "format_version": 1,
+        "robot": robot,
+        "body_names": list(body_names),
+    }
+    if path.exists():
+        with path.open(encoding="utf-8") as stream:
+            existing = json.load(stream)
+        if existing != contract:
+            raise ValueError(f"existing body contract does not match {robot}: {path}")
+        return
+    _write_json_atomic(path, contract)
+
+
 def _temporary_path(path: pathlib.Path) -> pathlib.Path:
     path.parent.mkdir(parents=True, exist_ok=True)
     with tempfile.NamedTemporaryFile(
@@ -260,24 +334,72 @@ def _temporary_path(path: pathlib.Path) -> pathlib.Path:
         return pathlib.Path(stream.name)
 
 
-def _finite_difference(values: np.ndarray, fps: float) -> np.ndarray:
-    velocity = np.zeros_like(values, dtype=float)
+def _central_difference(values: np.ndarray, fps: float) -> np.ndarray:
     if len(values) < 2:
+        return np.zeros_like(values, dtype=float)
+    return np.gradient(values, 1.0 / fps, axis=0)
+
+
+def _angular_velocity(quat_wxyz: np.ndarray, fps: float) -> np.ndarray:
+    velocity = np.zeros(quat_wxyz.shape[:-1] + (3,), dtype=float)
+    if len(quat_wxyz) < 2:
         return velocity
-    velocity[:-1] = np.diff(values, axis=0) * fps
+    rotations = Rotation.from_quat(quat_wxyz[..., [1, 2, 3, 0]].reshape(-1, 4))
+    matrices = rotations.as_matrix().reshape(quat_wxyz.shape[:-1] + (3, 3))
+    if len(quat_wxyz) == 2:
+        relative = Rotation.from_matrix(matrices[1] @ matrices[0].swapaxes(-1, -2))
+        angular = relative.as_rotvec() * fps
+        velocity[:] = angular
+        return velocity
+
+    relative = Rotation.from_matrix(
+        matrices[2:] @ matrices[:-2].swapaxes(-1, -2)
+    )
+    velocity[1:-1] = relative.as_rotvec() * (0.5 * fps)
+    velocity[0] = velocity[1]
     velocity[-1] = velocity[-2]
     return velocity
 
 
-def _angular_velocity(root_quat_wxyz: np.ndarray, fps: float) -> np.ndarray:
-    velocity = np.zeros((len(root_quat_wxyz), 3), dtype=float)
-    if len(root_quat_wxyz) < 2:
-        return velocity
-    rotations = Rotation.from_quat(root_quat_wxyz[:, [1, 2, 3, 0]])
-    relative = rotations[1:] * rotations[:-1].inv()
-    velocity[:-1] = relative.as_rotvec() * fps
-    velocity[-1] = velocity[-2]
-    return velocity
+def _resample_qpos(
+    qpos: np.ndarray,
+    input_fps: float,
+    output_fps: int,
+) -> np.ndarray:
+    if len(qpos) < 2:
+        return qpos.copy()
+    duration = (len(qpos) - 1) / input_fps
+    output_times = np.arange(0.0, duration, 1.0 / output_fps)
+    input_times = np.arange(len(qpos), dtype=float) / input_fps
+    resampled = np.empty((len(output_times), qpos.shape[1]), dtype=float)
+    linear_columns = np.r_[0:3, 7:qpos.shape[1]]
+    for column in linear_columns:
+        resampled[:, column] = np.interp(output_times, input_times, qpos[:, column])
+
+    root_quat_xyzw = qpos[:, [4, 5, 6, 3]].copy()
+    root_quat_xyzw /= np.linalg.norm(root_quat_xyzw, axis=1, keepdims=True)
+    resampled_quat = Slerp(input_times, Rotation.from_quat(root_quat_xyzw))(
+        output_times
+    ).as_quat()
+    resampled[:, 3:7] = resampled_quat[:, [3, 0, 1, 2]]
+    return resampled
+
+
+def _body_world_poses(
+    model: mujoco.MjModel,
+    qpos: np.ndarray,
+    body_ids: Sequence[int],
+) -> tuple[np.ndarray, np.ndarray]:
+    data = mujoco.MjData(model)
+    body_index = np.asarray(body_ids, dtype=int)
+    positions = np.empty((len(qpos), len(body_ids), 3), dtype=float)
+    quaternions = np.empty((len(qpos), len(body_ids), 4), dtype=float)
+    for frame_index, frame in enumerate(qpos):
+        data.qpos[:] = frame
+        mujoco.mj_forward(model, data)
+        positions[frame_index] = data.xpos[body_index]
+        quaternions[frame_index] = data.xquat[body_index]
+    return positions, quaternions
 
 
 def export_retarget_motion(
@@ -290,6 +412,8 @@ def export_retarget_motion(
     output_root: str | pathlib.Path = pathlib.Path("retarget_data"),
     repository_root: str | pathlib.Path = REPOSITORY_ROOT,
     cwd: str | pathlib.Path | None = None,
+    beyondmimic_fps: int = 50,
+    body_names: Sequence[str] | None = None,
 ) -> ExportPaths:
     fps = float(fps)
     qpos = np.asarray(qpos_frames, dtype=float)
@@ -301,9 +425,14 @@ def export_retarget_motion(
         raise ValueError("expected at least one frame")
     if not np.isfinite(qpos).all():
         raise ValueError("qpos frames must contain only finite values")
+    if not isinstance(beyondmimic_fps, int) or beyondmimic_fps <= 0:
+        raise ValueError(
+            f"expected positive integer BeyondMimic fps, got {beyondmimic_fps}"
+        )
 
     joint_names = scalar_joint_names(model)
     joint_addresses = _scalar_joint_addresses(model)
+    exported_body_names, body_ids = _resolve_body_ids(model, body_names)
     root_quat_wxyz = qpos[:, 3:7].copy()
     norms = np.linalg.norm(root_quat_wxyz, axis=1, keepdims=True)
     if np.any(norms < 1e-8):
@@ -313,12 +442,11 @@ def export_retarget_motion(
     root_pos = qpos[:, :3].copy()
     root_quat_xyzw = root_quat_wxyz[:, [1, 2, 3, 0]]
     joint_pos = qpos[:, joint_addresses].copy()
-    root_lin_vel = _finite_difference(root_pos, fps)
-    root_ang_vel = _angular_velocity(root_quat_wxyz, fps)
-    joint_vel = _finite_difference(joint_pos, fps)
     paths = export_paths(robot, source_path, output_root)
 
     ensure_joint_contract(paths.joints, robot, joint_names)
+    assert paths.bodies is not None
+    ensure_body_contract(paths.bodies, robot, exported_body_names)
 
     motion_payload = {
         "fps": fps,
@@ -338,17 +466,27 @@ def export_retarget_motion(
 
     temporary = _temporary_path(paths.dataset)
     try:
+        beyondmimic_qpos = _resample_qpos(qpos, fps, beyondmimic_fps)
+        beyondmimic_joint_pos = beyondmimic_qpos[:, joint_addresses]
+        body_pos_w, body_quat_w = _body_world_poses(
+            model, beyondmimic_qpos, body_ids
+        )
         with temporary.open("wb") as stream:
             np.savez(
                 stream,
-                fps=np.asarray(fps, dtype=float),
-                root_pos=root_pos,
-                root_quat=root_quat_xyzw,
-                root_lin_vel=root_lin_vel,
-                root_ang_vel=root_ang_vel,
-                joint_pos=joint_pos,
-                joint_vel=joint_vel,
-                joint_names=np.asarray(joint_names),
+                fps=np.asarray([beyondmimic_fps], dtype=np.int64),
+                joint_pos=beyondmimic_joint_pos.astype(np.float32),
+                joint_vel=_central_difference(
+                    beyondmimic_joint_pos, beyondmimic_fps
+                ).astype(np.float32),
+                body_pos_w=body_pos_w.astype(np.float32),
+                body_quat_w=body_quat_w.astype(np.float32),
+                body_lin_vel_w=_central_difference(
+                    body_pos_w, beyondmimic_fps
+                ).astype(np.float32),
+                body_ang_vel_w=_angular_velocity(
+                    body_quat_w, beyondmimic_fps
+                ).astype(np.float32),
             )
         temporary.replace(paths.dataset)
     finally:

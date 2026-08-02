@@ -6,7 +6,9 @@ import numpy as np
 import pytest
 
 from general_motion_retargeting.retarget_export import (
+    articulation_body_names,
     encode_source_path,
+    ensure_body_contract,
     ensure_joint_contract,
     export_retarget_motion,
     export_paths,
@@ -40,6 +42,7 @@ def test_export_paths_use_robot_and_source_stem(tmp_path):
     paths = export_paths("dr02", "/data/walk_stageii.npz", tmp_path)
 
     assert paths.joints == tmp_path / "dr02" / "joints.json"
+    assert paths.bodies == tmp_path / "dr02" / "bodies.json"
     assert paths.motion == tmp_path / "dr02" / "motions" / "walk_stageii.pkl"
     assert paths.dataset == tmp_path / "dr02" / "datasets" / "walk_stageii.npz"
     assert paths.csv == tmp_path / "dr02" / "beyondmimic" / "walk_stageii.csv"
@@ -244,6 +247,14 @@ def test_scalar_joint_names_rejects_unnamed_joint():
         scalar_joint_names(model)
 
 
+def test_articulation_body_names_deduplicates_multidof_bodies():
+    model = model_from_joints(
+        "<joint name='hip' type='hinge'/><joint name='knee' type='slide'/>"
+    )
+
+    assert articulation_body_names(model) == ("base", "joint_body")
+
+
 def test_joint_contract_is_created_and_reused(tmp_path):
     path = tmp_path / "dr02" / "joints.json"
     expected = {
@@ -274,6 +285,38 @@ def test_joint_contract_rejects_existing_mismatch(tmp_path):
 
     with pytest.raises(ValueError, match="does not match"):
         ensure_joint_contract(path, "dr02", ("hip", "knee"))
+
+
+def test_body_contract_is_created_and_reused(tmp_path):
+    path = tmp_path / "dr02" / "bodies.json"
+    expected = {
+        "format_version": 1,
+        "robot": "dr02",
+        "body_names": ["base", "hip_link"],
+    }
+
+    ensure_body_contract(path, "dr02", ("base", "hip_link"))
+    first_contents = path.read_text()
+    ensure_body_contract(path, "dr02", ("base", "hip_link"))
+
+    assert json.loads(first_contents) == expected
+    assert path.read_text() == first_contents
+
+
+def test_body_contract_rejects_existing_mismatch(tmp_path):
+    path = tmp_path / "bodies.json"
+    path.write_text(
+        json.dumps(
+            {
+                "format_version": 1,
+                "robot": "dr02",
+                "body_names": ["hip_link", "base"],
+            }
+        )
+    )
+
+    with pytest.raises(ValueError, match="does not match"):
+        ensure_body_contract(path, "dr02", ("base", "hip_link"))
 
 
 def two_joint_qpos():
@@ -319,21 +362,43 @@ def test_export_retarget_motion_writes_all_artifacts(tmp_path):
     with np.load(paths.dataset) as dataset:
         assert set(dataset.files) == {
             "fps",
-            "root_pos",
-            "root_quat",
-            "root_lin_vel",
-            "root_ang_vel",
             "joint_pos",
             "joint_vel",
-            "joint_names",
+            "body_pos_w",
+            "body_quat_w",
+            "body_lin_vel_w",
+            "body_ang_vel_w",
         }
-        assert dataset["joint_names"].tolist() == ["hip", "knee"]
-        np.testing.assert_allclose(dataset["root_quat"][0], [0.0, 0.0, 0.0, 1.0])
-        np.testing.assert_allclose(dataset["root_lin_vel"], [[5.0, 0.0, 0.0]] * 2)
-        np.testing.assert_allclose(dataset["joint_vel"], [[2.0, 4.0]] * 2)
+        assert dataset["fps"].tolist() == [50]
+        assert dataset["fps"].dtype == np.int64
+        assert dataset["joint_pos"].shape == (5, 2)
+        assert dataset["body_pos_w"].shape == (5, 2, 3)
+        assert dataset["body_quat_w"].shape == (5, 2, 4)
+        assert dataset["body_lin_vel_w"].shape == (5, 2, 3)
+        assert dataset["body_ang_vel_w"].shape == (5, 2, 3)
+        for name in dataset.files[1:]:
+            assert dataset[name].dtype == np.float32
         np.testing.assert_allclose(
-            dataset["root_ang_vel"], [[0.0, 0.0, 5.0 * np.pi]] * 2
+            dataset["joint_pos"],
+            [
+                [0.1, 0.2],
+                [0.14, 0.28],
+                [0.18, 0.36],
+                [0.22, 0.44],
+                [0.26, 0.52],
+            ],
         )
+        np.testing.assert_allclose(dataset["joint_vel"], [[2.0, 4.0]] * 5)
+        np.testing.assert_allclose(dataset["body_pos_w"][:, 0, 0], np.arange(5) / 10)
+        np.testing.assert_allclose(
+            dataset["body_quat_w"][0, 0], [1.0, 0.0, 0.0, 0.0]
+        )
+
+    assert json.loads(paths.bodies.read_text()) == {
+        "format_version": 1,
+        "robot": "dr02",
+        "body_names": ["base", "joint_body"],
+    }
 
     csv = np.loadtxt(paths.csv, delimiter=",")
     assert csv.shape == (2, 9)
@@ -382,6 +447,62 @@ def test_csv_downsamples_motion_above_30_fps(tmp_path):
 
     csv = np.loadtxt(paths.csv, delimiter=",")
     np.testing.assert_allclose(csv[:, 0], [0.0, 2.0])
+
+
+def test_export_accepts_explicit_body_order_with_fixed_bodies(tmp_path):
+    model = mujoco.MjModel.from_xml_string(
+        """
+        <mujoco>
+          <worldbody>
+            <body name="base">
+              <freejoint name="root"/>
+              <geom type="sphere" size="0.1"/>
+              <body name="fixed_marker" pos="0 0 1"/>
+              <body name="hip_link">
+                <joint name="hip"/>
+                <geom type="sphere" size="0.05"/>
+              </body>
+            </body>
+          </worldbody>
+        </mujoco>
+        """
+    )
+    qpos = np.asarray([[0, 0, 0, 1, 0, 0, 0, 0]], dtype=float)
+
+    paths = export_retarget_motion(
+        model,
+        "robot",
+        "pose.npz",
+        30.0,
+        qpos,
+        output_root=tmp_path,
+        body_names=("base", "hip_link", "fixed_marker"),
+    )
+
+    with np.load(paths.dataset) as dataset:
+        assert dataset["body_pos_w"].shape == (1, 3, 3)
+        np.testing.assert_allclose(dataset["body_pos_w"][0, 2], [0, 0, 1])
+    assert json.loads(paths.bodies.read_text())["body_names"] == [
+        "base",
+        "hip_link",
+        "fixed_marker",
+    ]
+
+
+def test_export_rejects_body_order_without_root_first(tmp_path):
+    model = model_from_joints("<joint name='hip'/>")
+    qpos = two_joint_qpos()[:, :8]
+
+    with pytest.raises(ValueError, match="free-root body"):
+        export_retarget_motion(
+            model,
+            "dr02",
+            "bad.npz",
+            30.0,
+            qpos,
+            output_root=tmp_path,
+            body_names=("joint_body", "base"),
+        )
 
 
 @pytest.mark.parametrize(

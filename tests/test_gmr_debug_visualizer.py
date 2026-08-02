@@ -87,6 +87,19 @@ def test_reference_transform_matches_gmr_table1_transform_order():
     np.testing.assert_allclose(points["hand"].world_position, [4, 0.2, 1.4])
 
 
+def test_reference_transform_honors_disabled_global_offsets():
+    config = config_payload()
+    config["use_global_position_offsets"] = False
+    frame = {
+        "pelvis": (np.array([0.0, 0.0, 1.0]), np.array([1, 0, 0, 0])),
+        "hand": (np.array([0.0, 0.0, 1.5]), np.array([1, 0, 0, 0])),
+    }
+
+    points = transform_reference_frame(frame, config)
+
+    np.testing.assert_allclose(points["hand"].world_position, [1.0, 0.0, 1.15])
+
+
 def test_full_reference_uses_nearest_mapped_descendant_scale_and_exact_targets():
     config = config_payload()
     frame = {

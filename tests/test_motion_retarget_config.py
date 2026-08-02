@@ -165,3 +165,41 @@ def test_external_config_can_disable_preserved_global_offsets(tmp_path):
     np.testing.assert_allclose(
         retarget.scaled_human_data["hand"][0], root_position
     )
+
+
+def test_zero_cost_mapping_is_ignored_during_target_offsetting(tmp_path):
+    xml, config_path = external_site_robot(tmp_path)
+    config = json.loads(config_path.read_text())
+    config["human_scale_table"]["disabled_knee"] = 1.0
+    config["ik_match_table1"]["unused_frame"] = [
+        "disabled_knee",
+        0.0,
+        0.0,
+        [0.1, 0.2, 0.3],
+        [1.0, 0.0, 0.0, 0.0],
+    ]
+    config_path.write_text(json.dumps(config))
+    retarget = GeneralMotionRetargeting(
+        src_human="smplx",
+        tgt_robot="external",
+        robot_xml_path=xml,
+        ik_config_path=config_path,
+        verbose=False,
+    )
+    identity = np.array([1.0, 0.0, 0.0, 0.0])
+    disabled_position = np.array([1.0, 2.0, 3.0])
+
+    retarget.update_targets(
+        {
+            "pelvis": (np.zeros(3), identity.copy()),
+            "hand": (np.zeros(3), identity.copy()),
+            "disabled_knee": (disabled_position, identity.copy()),
+        }
+    )
+
+    np.testing.assert_allclose(
+        retarget.scaled_human_data["disabled_knee"][0], disabled_position
+    )
+    np.testing.assert_allclose(
+        retarget.scaled_human_data["disabled_knee"][1], identity
+    )

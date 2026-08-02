@@ -141,7 +141,11 @@ def transform_reference_frame(
     ground = float(config.get("ground_height", 0.0)) * np.array([0, 0, 1.0])
     table = config["ik_match_table1"]
     by_reference = {entry[0]: entry for entry in table.values()}
-    global_offsets = config.get("global_position_offsets", {})
+    global_offsets = (
+        config.get("global_position_offsets", {})
+        if config.get("use_global_position_offsets", True)
+        else {}
+    )
     result = {}
     for name, (position, quaternion) in scaled.items():
         entry = by_reference.get(name)

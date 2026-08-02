@@ -299,15 +299,17 @@ named `walk.npz`, the output is:
 ```text
 retarget_data/<robot_name>/
 ├── joints.json
+├── bodies.json
 ├── motions/walk.pkl
 ├── datasets/walk.npz
 └── beyondmimic/walk.csv
 ```
 
-All motions for one robot share the same `joints.json`. GMR refuses to export
-if its current MuJoCo joint order differs from the existing contract. The PKL
-is the native GMR motion, the NPZ contains generic training states and
-velocities, and the CSV uses the BeyondMimic column layout.
+All motions for one robot share the same `joints.json` and `bodies.json`. GMR
+refuses to export if its current MuJoCo joint or articulation-body order differs
+from the existing contracts. The PKL is the native GMR motion. The NPZ uses the
+BeyondMimic motion schema at 50 FPS, with joint states and MuJoCo-FK world body
+poses and velocities. The CSV uses the BeyondMimic intermediate column layout.
 
 Without `--no_viewer`, you should see the retargeted motion in a MuJoCo window.
 If you want to record video, add `--record_video`.

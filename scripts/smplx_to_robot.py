@@ -149,6 +149,7 @@ def main(argv: list[str] | None = None) -> int:
             print(f"Saved training dataset to {paths.dataset}")
             print(f"Saved BeyondMimic CSV to {paths.csv}")
             print(f"Joint order contract: {paths.joints}")
+            print(f"Body order contract: {paths.bodies}")
     finally:
         if viewer is not None:
             viewer.close()

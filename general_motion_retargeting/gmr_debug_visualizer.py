@@ -64,6 +64,22 @@ _SMPLX_DEBUG_PARENTS = {
     "right_shoulder": "spine3",
 }
 
+_LAFAN1_DEBUG_PARENTS = {
+    "Spine2": "Hips",
+    "LeftUpLeg": "Hips",
+    "LeftLeg": "LeftUpLeg",
+    "LeftFootMod": "LeftLeg",
+    "RightUpLeg": "Hips",
+    "RightLeg": "RightUpLeg",
+    "RightFootMod": "RightLeg",
+    "LeftArm": "Spine2",
+    "LeftForeArm": "LeftArm",
+    "LeftHand": "LeftForeArm",
+    "RightArm": "Spine2",
+    "RightForeArm": "RightArm",
+    "RightHand": "RightForeArm",
+}
+
 
 def load_effective_ik_config(
     path: str | Path, actual_human_height: float | None = None
@@ -166,6 +182,22 @@ def transform_reference_frame(
     return result
 
 
+def processed_reference_frame(
+    frame: Mapping[str, Sequence[np.ndarray]],
+) -> dict[str, ReferencePoint]:
+    """Convert final GMR targets without applying preprocessing again."""
+    return {
+        name: ReferencePoint(
+            reference_name=name,
+            world_position=np.asarray(value[0], dtype=float).copy(),
+            world_rotation=Rotation.from_quat(
+                np.asarray(value[1], dtype=float), scalar_first=True
+            ).as_matrix(),
+        )
+        for name, value in frame.items()
+    }
+
+
 def transform_full_reference_frame(
     frame: Mapping[str, Sequence[np.ndarray]],
     config: Mapping,
@@ -263,11 +295,12 @@ def compute_correspondences(
 
 
 def reference_edges(names: Sequence[str]) -> tuple[tuple[str, str], ...]:
-    """Return the sparse SMPL-X hierarchy restricted to visible targets."""
+    """Return known source-skeleton edges restricted to visible targets."""
     available = set(names)
+    parents = {**_SMPLX_DEBUG_PARENTS, **_LAFAN1_DEBUG_PARENTS}
     return tuple(
         (parent, child)
-        for child, parent in _SMPLX_DEBUG_PARENTS.items()
+        for child, parent in parents.items()
         if child in available and parent in available
     )
 

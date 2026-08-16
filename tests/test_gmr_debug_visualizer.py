@@ -3,6 +3,7 @@ import json
 import mujoco
 import numpy as np
 import pytest
+from scipy.spatial.transform import Rotation
 
 from general_motion_retargeting.gmr_debug_visualizer import (
     GMRDebugVisualizer,
@@ -11,6 +12,8 @@ from general_motion_retargeting.gmr_debug_visualizer import (
     compute_correspondences,
     compute_height_offset,
     load_effective_ik_config,
+    processed_reference_frame,
+    reference_edges,
     transform_full_reference_frame,
     transform_reference_frame,
 )
@@ -59,6 +62,38 @@ def config_payload():
             "hand": ["unused", 0, 10, [0, 0, 0], [1, 0, 0, 0]],
         },
     }
+
+
+def test_processed_reference_frame_preserves_final_gmr_target_positions():
+    frame = {
+        "Hips": (
+            np.array([1.25, -0.5, 0.8]),
+            np.array([np.sqrt(0.5), 0.0, 0.0, np.sqrt(0.5)]),
+        )
+    }
+
+    points = processed_reference_frame(frame)
+
+    np.testing.assert_allclose(
+        points["Hips"].world_position, [1.25, -0.5, 0.8]
+    )
+    np.testing.assert_allclose(
+        points["Hips"].world_rotation,
+        Rotation.from_euler("z", 90, degrees=True).as_matrix(),
+        atol=1e-12,
+    )
+
+
+def test_reference_edges_infers_supported_skeletons_and_filters_missing_names():
+    assert ("pelvis", "left_knee") in reference_edges(
+        ["pelvis", "left_knee", "left_foot"]
+    )
+    lafan_edges = reference_edges(
+        ["Hips", "LeftUpLeg", "LeftLeg", "LeftFootMod"]
+    )
+    assert ("Hips", "LeftUpLeg") in lafan_edges
+    assert ("LeftLeg", "LeftFootMod") in lafan_edges
+    assert reference_edges(["custom_root", "custom_hand"]) == ()
 
 
 def test_load_config_unwraps_and_applies_height_ratio_without_mutating(tmp_path):

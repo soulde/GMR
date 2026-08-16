@@ -59,11 +59,13 @@ def minimal_robot(tmp_path, monkeypatch):
             self.opt = mujoco.MjvOption()
             self.cam = mujoco.MjvCamera()
             self.texts = None
+            self.text_updates = []
             self.sync_calls = 0
             self.closed = False
 
         def set_texts(self, texts):
             self.texts = texts
+            self.text_updates.append(texts)
 
         def sync(self):
             self.sync_calls += 1
@@ -129,6 +131,20 @@ def test_debug_step_draws_overlay_and_error_statistics(minimal_robot):
     assert viewer.viewer.user_scn.ngeom > 0
     assert viewer.viewer.texts
     assert viewer.viewer.texts[0][2].startswith("frame\n")
+    viewer.close()
+
+
+def test_debug_step_publishes_text_once_without_empty_intermediate_state(
+    minimal_robot,
+):
+    viewer = RobotMotionViewer(
+        "test_robot", debug=True, ik_config_path=minimal_robot.config_path
+    )
+
+    step_once(viewer, human_targets())
+
+    assert len(viewer.viewer.text_updates) == 1
+    assert viewer.viewer.text_updates[0]
     viewer.close()
 
 

@@ -153,8 +153,6 @@ class RobotMotionViewer:
         
         if self.debug_visualizer is not None:
             self.viewer.user_scn.ngeom = 0
-            if hasattr(self.viewer, "set_texts"):
-                self.viewer.set_texts([])
             if human_motion_data is not None:
                 references = processed_reference_frame(human_motion_data)
                 edges = (
@@ -170,6 +168,8 @@ class RobotMotionViewer:
                     full_reference_skeleton=references,
                     full_reference_edges=edges,
                 )
+            elif hasattr(self.viewer, "set_texts"):
+                self.viewer.set_texts([])
             self.debug_frame_index += 1
         elif human_motion_data is not None:
             # Clean custom geometry

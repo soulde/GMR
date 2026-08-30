@@ -86,7 +86,6 @@ def external_site_robot(tmp_path):
                     ]
                 },
                 "ik_match_table2": {},
-                "global_position_offsets": {"hand": [0.1, 0.2, 0.3]},
                 "initialize_root_from_human": True,
                 "initialization_retargets": 1,
                 "initial_joint_positions": {"elbow": 0.25},
@@ -112,7 +111,7 @@ def test_external_config_can_target_body_or_site_frames(tmp_path):
         retarget._resolve_frame_type("missing")
 
 
-def test_external_config_applies_global_offsets_and_initial_pose(tmp_path):
+def test_external_config_applies_initial_pose(tmp_path):
     xml, config = external_site_robot(tmp_path)
     retarget = GeneralMotionRetargeting(
         src_human="smplx",
@@ -132,39 +131,13 @@ def test_external_config_applies_global_offsets_and_initial_pose(tmp_path):
 
     np.testing.assert_allclose(
         retarget.scaled_human_data["hand"][0],
-        root_position + np.array([0.1, 0.2, 0.3]),
+        root_position,
     )
     retarget._initialize_root_from_human_target()
     np.testing.assert_allclose(retarget.configuration.data.qpos[:3], root_position)
     assert retarget.configuration.data.qpos[
         retarget.model.joint("elbow").qposadr[0]
     ] == pytest.approx(0.25)
-
-
-def test_external_config_can_disable_preserved_global_offsets(tmp_path):
-    xml, config_path = external_site_robot(tmp_path)
-    config = json.loads(config_path.read_text())
-    config["use_global_position_offsets"] = False
-    config_path.write_text(json.dumps(config))
-    retarget = GeneralMotionRetargeting(
-        src_human="smplx",
-        tgt_robot="external",
-        robot_xml_path=xml,
-        ik_config_path=config_path,
-        verbose=False,
-    )
-    identity = np.array([1.0, 0.0, 0.0, 0.0])
-    root_position = np.array([1.0, 2.0, 3.0])
-    retarget.update_targets(
-        {
-            "pelvis": (root_position, identity.copy()),
-            "hand": (root_position, identity.copy()),
-        }
-    )
-
-    np.testing.assert_allclose(
-        retarget.scaled_human_data["hand"][0], root_position
-    )
 
 
 def test_zero_cost_mapping_is_ignored_during_target_offsetting(tmp_path):

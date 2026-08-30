@@ -126,15 +126,6 @@ class GeneralMotionRetargeting:
         self.use_ik_match_table1 = ik_config["use_ik_match_table1"]
         self.use_ik_match_table2 = ik_config["use_ik_match_table2"]
         self.human_scale_table = ik_config["human_scale_table"]
-        self.use_global_position_offsets = ik_config.get(
-            "use_global_position_offsets", True
-        )
-        self.global_position_offsets = {
-            name: np.asarray(offset, dtype=float)
-            for name, offset in ik_config.get(
-                "global_position_offsets", {}
-            ).items()
-        }
         self.ground = ik_config["ground_height"] * np.array([0, 0, 1])
 
         self.max_iter = 10
@@ -229,10 +220,6 @@ class GeneralMotionRetargeting:
         human_data = self.to_numpy(human_data)
         human_data = self.scale_human_data(human_data, self.human_root_name, self.human_scale_table)
         human_data = self.offset_human_data(human_data, self.pos_offsets1, self.rot_offsets1)
-        if self.use_global_position_offsets:
-            human_data = self.offset_human_data_global(
-                human_data, self.global_position_offsets
-            )
         human_data = self.apply_ground_offset(human_data)
         if offset_to_ground:
             human_data = self.offset_human_data_to_ground(human_data)
@@ -409,13 +396,6 @@ class GeneralMotionRetargeting:
             pos, quat = human_data[body_name]
             offset_human_data[body_name] = [pos, quat]
             offset_human_data[body_name][0] = pos - np.array([0, 0, lowest_pos]) + np.array([0, 0, ground_offset])
-        return offset_human_data
-
-    def offset_human_data_global(self, human_data, global_position_offsets):
-        offset_human_data = {}
-        for body_name, (pos, quat) in human_data.items():
-            offset = global_position_offsets.get(body_name, 0.0)
-            offset_human_data[body_name] = [pos + offset, quat]
         return offset_human_data
 
     def set_ground_offset(self, ground_offset):

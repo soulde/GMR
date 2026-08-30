@@ -47,7 +47,6 @@ def config_payload():
         "human_height_assumption": 2.0,
         "ground_height": 0.1,
         "human_scale_table": {"pelvis": 1.0, "hand": 0.5},
-        "global_position_offsets": {"hand": [0.0, 0.2, 0.0]},
         "use_ik_match_table1": True,
         "use_ik_match_table2": True,
         "ik_match_table1": {
@@ -82,22 +81,9 @@ def test_reference_transform_matches_gmr_table1_transform_order():
     points = transform_reference_frame(frame, config)
 
     # Root scales globally. Hand first scales pelvis-relative, then receives
-    # table-1 local offset minus ground height, then its global offset.
+    # table-1 local offset minus ground height.
     np.testing.assert_allclose(points["pelvis"].world_position, [2, 0, 0.9])
-    np.testing.assert_allclose(points["hand"].world_position, [4, 0.2, 1.4])
-
-
-def test_reference_transform_honors_disabled_global_offsets():
-    config = config_payload()
-    config["use_global_position_offsets"] = False
-    frame = {
-        "pelvis": (np.array([0.0, 0.0, 1.0]), np.array([1, 0, 0, 0])),
-        "hand": (np.array([0.0, 0.0, 1.5]), np.array([1, 0, 0, 0])),
-    }
-
-    points = transform_reference_frame(frame, config)
-
-    np.testing.assert_allclose(points["hand"].world_position, [1.0, 0.0, 1.15])
+    np.testing.assert_allclose(points["hand"].world_position, [4, 0, 1.4])
 
 
 def test_full_reference_uses_nearest_mapped_descendant_scale_and_exact_targets():

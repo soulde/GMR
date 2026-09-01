@@ -21,7 +21,11 @@ from general_motion_retargeting.gmr_debug_visualizer import (
     transform_full_reference_frame,
     transform_reference_frame,
 )
-from general_motion_retargeting.params import IK_CONFIG_DICT, ROBOT_XML_DICT
+from general_motion_retargeting.params import (
+    IK_CONFIG_DICT,
+    ROBOT_XML_DICT,
+    SKELETON_CONFIG_DICT,
+)
 from general_motion_retargeting.retarget_export import load_motion_manifest
 
 
@@ -50,10 +54,22 @@ def build_parser() -> argparse.ArgumentParser:
     parser.add_argument("--reference", type=Path)
     parser.add_argument("--mjcf", type=Path)
     parser.add_argument("--ik-config", type=Path)
+    parser.add_argument(
+        "--algorithm",
+        choices=["gmr", "skeleton"],
+        default="gmr",
+        help="Select the matching target configuration; defaults to GMR.",
+    )
     parser.add_argument("--height-offset", default="auto")
     parser.add_argument("--actual-human-height", type=float)
     parser.add_argument(
         "--body-model-dir", type=Path, default=Path("assets/body_models")
+    )
+    parser.add_argument(
+        "--bvh-format",
+        choices=["lafan1", "nokov"],
+        default="lafan1",
+        help="Skeleton convention used when --reference is a BVH file.",
     )
     parser.add_argument("--robot-alpha", type=float, default=0.3)
     parser.add_argument("--camera-body")
@@ -109,9 +125,17 @@ def resolve_viewer_inputs(
         ik_config = _existing_path(args.ik_config, "IK config")
     else:
         assert entry is not None
-        config_path = IK_CONFIG_DICT["smplx"].get(entry.robot)
+        if args.algorithm == "skeleton":
+            config_group = SKELETON_CONFIG_DICT["bvh_lafan1"]
+            config_label = "LAFAN1 skeleton"
+        else:
+            config_group = IK_CONFIG_DICT["smplx"]
+            config_label = "SMPL-X IK"
+        config_path = config_group.get(entry.robot)
         if config_path is None:
-            raise ValueError(f"unknown robot in SMPL-X IK configs: {entry.robot}")
+            raise ValueError(
+                f"unknown robot in {config_label} configs: {entry.robot}"
+            )
         ik_config = _existing_path(Path(config_path), "inferred IK config")
 
     return ResolvedViewerInputs(reference, mjcf, ik_config)
@@ -136,11 +160,29 @@ def load_motion(path: Path) -> dict:
 
 
 def load_reference_frames(
-    path: Path, body_model_dir: Path
+    path: Path,
+    body_model_dir: Path,
+    bvh_format: str = "lafan1",
 ) -> tuple[list[dict], float, float | None, tuple[tuple[str, str], ...]]:
     """Load raw reference frames; SMPL-X remains the canonical input."""
     if not path.is_file():
         raise FileNotFoundError(path)
+    if path.suffix.lower() == ".bvh":
+        from general_motion_retargeting.utils.lafan1 import load_bvh_file
+        from general_motion_retargeting.utils.lafan_vendor.extract import (
+            read_bvh,
+        )
+
+        frames, height = load_bvh_file(str(path), format=bvh_format)
+        anim = read_bvh(str(path))
+        names = list(anim.bones)
+        parents = np.asarray(anim.parents, dtype=int)
+        edges = tuple(
+            (names[int(parents[index])], names[index])
+            for index in range(1, len(names))
+            if int(parents[index]) >= 0
+        )
+        return frames, 30.0, float(height), edges
     if path.suffix.lower() == ".npz":
         from general_motion_retargeting.utils.smpl import (
             get_smplx_data_offline_fast,
@@ -184,7 +226,7 @@ def load_reference_frames(
                 if int(parents[index]) >= 0
             )
         return list(frames), fps, None if height is None else float(height), edges
-    raise ValueError("reference must be an SMPL-X .npz or frame .pkl")
+    raise ValueError("reference must be a BVH, an SMPL-X .npz, or a frame .pkl")
 
 
 def align_reference_frames(frames: list, motion_frame_count: int) -> list:
@@ -240,13 +282,15 @@ def main(argv: list[str] | None = None) -> int:
         inputs = resolve_viewer_inputs(args)
         height_option = parse_height_offset(args.height_offset)
         motion = load_motion(args.motion)
-        frames, reference_fps, detected_height, full_reference_edges = load_reference_frames(
-            inputs.reference, args.body_model_dir
+        frames, reference_fps, detected_height, full_reference_edges = (
+            load_reference_frames(
+                inputs.reference, args.body_model_dir, args.bvh_format
+            )
         )
         frames = align_reference_frames(frames, len(motion["root_pos"]))
         actual_height = args.actual_human_height or detected_height
         config = load_effective_ik_config(inputs.ik_config, actual_height)
-        model = mujoco.MjModel.from_xml_string(compose_scene_xml(inputs.mjcf))
+        model = mujoco.MjModel.from_xml_path(compose_scene_xml(inputs.mjcf))
         data = mujoco.MjData(model)
         height_offset = (
             compute_height_offset(model, motion)
@@ -263,7 +307,8 @@ def main(argv: list[str] | None = None) -> int:
         fps = float(motion["fps"] or reference_fps)
         frame_limit = args.max_frames
         print(
-            f"GMR debug viewer: frames={len(frames)}, mappings={len(visualizer.mappings)}, "
+            f"GMR debug viewer: algorithm={args.algorithm}, frames={len(frames)}, "
+            f"mappings={len(visualizer.mappings)}, "
             f"height_offset={height_offset:.6f} m"
         )
 

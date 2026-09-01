@@ -1,18 +1,19 @@
 import argparse
 import pathlib
 import time
-from general_motion_retargeting import GeneralMotionRetargeting as GMR
-from general_motion_retargeting import RobotMotionViewer
+from general_motion_retargeting import (
+    GeneralMotionRetargeting,
+    RobotMotionViewer,
+    SkeletonMotionRetargeting,
+)
 from general_motion_retargeting.utils.lafan1 import load_bvh_file
 from rich import print
 from tqdm import tqdm
 import os
 import numpy as np
 
-if __name__ == "__main__":
-    
-    HERE = pathlib.Path(__file__).parent
 
+def build_parser() -> argparse.ArgumentParser:
     parser = argparse.ArgumentParser()
     parser.add_argument(
         "--bvh_file",
@@ -36,7 +37,7 @@ if __name__ == "__main__":
     
     parser.add_argument(
         "--robot",
-        choices=["unitree_g1", "unitree_g1_with_hands", "booster_t1", "stanford_toddy", "fourier_n1", "engineai_pm01", "pal_talos"],
+        choices=["unitree_g1", "unitree_g1_with_hands", "booster_t1", "stanford_toddy", "fourier_n1", "engineai_pm01", "pal_talos", "dr02"],
         default="unitree_g1",
     )
     
@@ -70,8 +71,25 @@ if __name__ == "__main__":
         default=30,
         type=int,
     )
-    
-    args = parser.parse_args()
+    parser.add_argument(
+        "--algorithm",
+        choices=["gmr", "skeleton"],
+        default="gmr",
+        help="Retargeting algorithm; defaults to the original GMR solver.",
+    )
+    return parser
+
+
+def retargeter_class(algorithm: str):
+    return {
+        "gmr": GeneralMotionRetargeting,
+        "skeleton": SkeletonMotionRetargeting,
+    }[algorithm]
+
+
+if __name__ == "__main__":
+    HERE = pathlib.Path(__file__).parent
+    args = build_parser().parse_args()
     
     if args.save_path is not None:
         save_dir = os.path.dirname(args.save_path)
@@ -85,7 +103,7 @@ if __name__ == "__main__":
     
     
     # Initialize the retargeting system
-    retargeter = GMR(
+    retargeter = retargeter_class(args.algorithm)(
         src_human=f"bvh_{args.format}",
         tgt_robot=args.robot,
         actual_human_height=actual_human_height,

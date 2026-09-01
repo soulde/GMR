@@ -1,6 +1,10 @@
 import pytest
 
-from general_motion_retargeting.params import IK_CONFIG_DICT, ROBOT_XML_DICT
+from general_motion_retargeting.params import (
+    IK_CONFIG_DICT,
+    ROBOT_XML_DICT,
+    SKELETON_CONFIG_DICT,
+)
 from general_motion_retargeting.retarget_export import (
     export_paths,
     update_motion_manifest,
@@ -22,6 +26,14 @@ def test_unified_parser_requires_only_motion():
     assert args.ik_config is None
     assert args.height_offset == "auto"
     assert args.loop is True
+    assert args.algorithm == "gmr"
+
+
+def test_unified_parser_accepts_skeleton_algorithm():
+    args = build_parser().parse_args(
+        ["--motion", "motion.pkl", "--algorithm", "skeleton"]
+    )
+    assert args.algorithm == "skeleton"
 
 
 def manifest_fixture(tmp_path, robot="dr02", *, source_exists=True):
@@ -46,6 +58,17 @@ def test_viewer_inputs_are_inferred_from_motion_manifest(tmp_path):
     assert resolved.reference == source.resolve()
     assert resolved.mjcf == ROBOT_XML_DICT["dr02"].resolve()
     assert resolved.ik_config == IK_CONFIG_DICT["smplx"]["dr02"].resolve()
+
+
+def test_skeleton_viewer_infers_lafan1_skeleton_config(tmp_path):
+    repository, _, paths = manifest_fixture(tmp_path)
+    args = build_parser().parse_args(
+        ["--motion", str(paths.motion), "--algorithm", "skeleton"]
+    )
+
+    resolved = resolve_viewer_inputs(args, repository_root=repository)
+
+    assert resolved.ik_config == SKELETON_CONFIG_DICT["bvh_lafan1"]["dr02"].resolve()
 
 
 def test_each_explicit_viewer_input_overrides_manifest_value(tmp_path):

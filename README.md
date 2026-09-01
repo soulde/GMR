@@ -371,6 +371,24 @@ Retarget a single motion:
 python scripts/bvh_to_robot.py --bvh_file <path_to_bvh_data> --robot <path_to_robot_data> --save_path <path_to_save_robot_data.pkl> --rate_limit --format <format>
 ```
 
+DR02 also supports the independent fixed-length skeleton retargeter for
+LAFAN1 BVH input:
+
+```bash
+PYTHONPATH=. python scripts/bvh_to_robot.py \
+  --bvh_file <path_to_lafan1.bvh> \
+  --robot dr02 \
+  --algorithm skeleton \
+  --save_path <path_to_save_robot_data.pkl>
+```
+
+The skeleton configuration declares each robot segment's target length in
+`skeleton_chains`. Human segment directions drive those fixed-length chains;
+`rotation_offset` aligns the human rest pose/local axes with the robot, while
+`position_offset` only calibrates a task-frame origin. Neither offset changes
+the declared bone length. Omitting `--algorithm` keeps the original GMR
+algorithm and configuration unchanged.
+
 By default you should see the visualization of the retargeted robot motion in a mujoco window. 
 - `--rate_limit` is used to limit the rate of the retargeted robot motion to keep the same as the human motion. If you want it as fast as possible, remove `--rate_limit`.
 - `--format` is used to specify the format of the BVH data. Supported formats are `lafan1` and `nokov`.
@@ -579,6 +597,10 @@ only the motion path to the debug viewer:
 PYTHONPATH=. uv run python scripts/vis_gmr_debug.py \
   --motion retarget_data/dr02/motions/walk.pkl
 ```
+
+For a skeleton-retargeted LAFAN1 export, add `--algorithm skeleton`. The viewer
+then infers the DR02 skeleton config; legacy or standalone files can still pass
+`--reference`, `--mjcf`, and `--ik-config` explicitly.
 
 `smplx_to_robot.py --save` updates `retarget_data/<robot>/manifest.json`
 automatically. The debug viewer uses that manifest to find the source motion and

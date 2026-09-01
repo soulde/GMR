@@ -96,3 +96,21 @@ def test_dr02_full_body_reconstruction_has_constant_lengths():
                 reconstructed[child][0] - reconstructed[parent][0]
             )
             assert actual == pytest.approx(expected, abs=1e-6)
+
+
+@pytest.mark.skipif(not DANCE_BVH.is_file(), reason="local LAFAN1 fixture unavailable")
+def test_dr02_skeleton_retargeter_produces_finite_qpos():
+    from general_motion_retargeting import SkeletonMotionRetargeting
+    from general_motion_retargeting.utils.lafan1 import load_bvh_file
+
+    frames, human_height = load_bvh_file(DANCE_BVH)
+    retargeter = SkeletonMotionRetargeting(
+        src_human="bvh_lafan1",
+        tgt_robot="dr02",
+        actual_human_height=human_height,
+    )
+
+    qpos = [retargeter.retarget(frame) for frame in frames[::30]]
+
+    assert qpos
+    assert all(np.isfinite(frame_qpos).all() for frame_qpos in qpos)

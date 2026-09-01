@@ -56,6 +56,25 @@ class SkeletonMotionRetargeting(GeneralMotionRetargeting):
             raise ValueError("skeleton config must set algorithm='skeleton'")
         chains = parse_skeleton_chains(config)
         self._validate_chain_scales(config, chains)
+        solver_settings = config.get("solver_settings", {})
+        self.minimum_iterations = int(
+            solver_settings.get("minimum_iterations", 1)
+        )
+        self.maximum_iterations = int(
+            solver_settings.get("maximum_iterations", 11)
+        )
+        self.position_error_threshold = float(
+            solver_settings.get("position_error_threshold", 0.01)
+        )
+        if not 1 <= self.minimum_iterations <= self.maximum_iterations:
+            raise ValueError(
+                "solver_settings must satisfy 1 <= minimum_iterations "
+                "<= maximum_iterations"
+            )
+        if self.position_error_threshold <= 0.0:
+            raise ValueError(
+                "position_error_threshold must be positive"
+            )
 
         super().__init__(
             src_human=src_human,
@@ -168,3 +187,52 @@ class SkeletonMotionRetargeting(GeneralMotionRetargeting):
                 task.set_target(
                     mink.SE3.from_rotation_and_translation(mink.SO3(rot), pos)
                 )
+
+    def _maximum_position_error(self, tasks) -> float:
+        position_errors = [
+            float(np.linalg.norm(task.compute_error(self.configuration)[:3]))
+            for task in tasks
+            if np.any(task.cost[:3] > 0.0)
+        ]
+        return max(position_errors, default=0.0)
+
+    def _solve_stage(self, tasks) -> None:
+        dt = self.configuration.model.opt.timestep
+        for iteration in range(1, self.maximum_iterations + 1):
+            velocity = mink.solve_ik(
+                self.configuration,
+                tasks,
+                dt,
+                self.solver,
+                self.damping,
+                limits=self.ik_limits,
+                safety_break=False,
+            )
+            self.configuration.integrate_inplace(velocity, dt)
+            if (
+                iteration >= self.minimum_iterations
+                and self._maximum_position_error(tasks)
+                <= self.position_error_threshold
+            ):
+                break
+
+    def retarget(self, human_data, offset_to_ground=False):
+        """Solve Skeleton targets with its independent convergence settings."""
+        self.update_targets(human_data, offset_to_ground)
+        initializing_root = (
+            self.initialize_root_from_human and not self.root_initialized
+        )
+        if initializing_root:
+            self._initialize_root_from_human_target()
+            self.root_initialized = True
+
+        if self.use_ik_match_table1:
+            self._solve_stage(self.tasks1)
+        if self.use_ik_match_table2:
+            self._solve_stage(self.tasks2)
+
+        qpos = self.configuration.data.qpos.copy()
+        if initializing_root:
+            for _ in range(self.initialization_retargets - 1):
+                qpos = self.retarget(human_data, offset_to_ground)
+        return qpos

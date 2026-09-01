@@ -1,3 +1,5 @@
+import json
+
 import pytest
 
 from general_motion_retargeting.params import (
@@ -11,10 +13,21 @@ from general_motion_retargeting.retarget_export import (
 )
 from scripts.vis_gmr_debug import (
     align_reference_frames,
+    build_reference_reconstructor,
     build_parser,
     parse_height_offset,
     resolve_viewer_inputs,
 )
+
+
+def test_skeleton_debug_builds_fixed_length_reference_reconstructor():
+    config_path = SKELETON_CONFIG_DICT["bvh_lafan1"]["dr02"]
+    config = json.loads(config_path.read_text())
+
+    assert build_reference_reconstructor("gmr", config) is None
+    reconstructor = build_reference_reconstructor("skeleton", config)
+    assert reconstructor is not None
+    assert reconstructor.chains
 
 
 def test_unified_parser_requires_only_motion():

@@ -27,6 +27,10 @@ from general_motion_retargeting.params import (
     SKELETON_CONFIG_DICT,
 )
 from general_motion_retargeting.retarget_export import load_motion_manifest
+from general_motion_retargeting.skeleton_retarget import (
+    SkeletonTargetReconstructor,
+    parse_skeleton_chains,
+)
 
 
 REPOSITORY_ROOT = Path(__file__).resolve().parents[1]
@@ -46,6 +50,15 @@ def parse_height_offset(value: str) -> str | float:
         return float(value)
     except ValueError as error:
         raise ValueError("height offset must be auto or a number") from error
+
+
+def build_reference_reconstructor(algorithm: str, config: dict):
+    """Mirror the selected retargeter's reference-target reconstruction."""
+    if algorithm == "gmr":
+        return None
+    if algorithm == "skeleton":
+        return SkeletonTargetReconstructor(parse_skeleton_chains(config))
+    raise ValueError(f"unknown retargeting algorithm: {algorithm}")
 
 
 def build_parser() -> argparse.ArgumentParser:
@@ -290,6 +303,15 @@ def main(argv: list[str] | None = None) -> int:
         frames = align_reference_frames(frames, len(motion["root_pos"]))
         actual_height = args.actual_human_height or detected_height
         config = load_effective_ik_config(inputs.ik_config, actual_height)
+        reference_reconstructor = build_reference_reconstructor(
+            args.algorithm, config
+        )
+        if reference_reconstructor is not None:
+            # SkeletonMotionRetargeting rebuilds metric chain positions and
+            # bypasses GeneralMotionRetargeting.scale_human_data().
+            config["human_scale_table"] = {
+                name: 1.0 for name in config["human_scale_table"]
+            }
         model = mujoco.MjModel.from_xml_path(compose_scene_xml(inputs.mjcf))
         data = mujoco.MjData(model)
         height_offset = (
@@ -314,9 +336,12 @@ def main(argv: list[str] | None = None) -> int:
 
         def update(index, viewer=None):
             _set_frame(model, data, motion, index, height_offset)
-            reference = transform_reference_frame(frames[index], config)
+            source_frame = frames[index]
+            if reference_reconstructor is not None:
+                source_frame = reference_reconstructor.reconstruct(source_frame)
+            reference = transform_reference_frame(source_frame, config)
             full_reference = transform_full_reference_frame(
-                frames[index],
+                source_frame,
                 config,
                 hierarchy_edges=full_reference_edges,
                 exact_targets=reference,

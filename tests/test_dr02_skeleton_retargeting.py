@@ -15,10 +15,10 @@ EXPECTED_LENGTHS = {
     ("Hips", "Spine2"): 0.29,
     ("Spine2", "LeftArm"): 0.3246858828159918,
     ("LeftArm", "LeftForeArm"): 0.265,
-    ("LeftForeArm", "LeftHand"): 0.2395,
+    ("LeftForeArm", "LeftHand"): 0.2495,
     ("Spine2", "RightArm"): 0.3246858828159918,
     ("RightArm", "RightForeArm"): 0.265,
-    ("RightForeArm", "RightHand"): 0.2395,
+    ("RightForeArm", "RightHand"): 0.2495,
     ("Hips", "LeftUpLeg"): 0.1614,
     ("LeftUpLeg", "LeftLeg"): 0.4194,
     ("LeftLeg", "LeftFoot"): 0.41,
@@ -76,6 +76,27 @@ def test_dr02_skeleton_length_offsets_are_zero():
     for table_name in ("ik_match_table1", "ik_match_table2"):
         for entry in config[table_name].values():
             assert entry[3] == [0, 0, 0]
+
+
+def test_dr02_skeleton_prioritizes_elbows_over_wrists_in_stage_two():
+    config = _load_config()
+    stage1 = config["ik_match_table1"]
+    stage2 = config["ik_match_table2"]
+
+    for side in ("left", "right"):
+        assert stage1[f"{side}_elbow_link"][1] == pytest.approx(8)
+        assert stage2[f"{side}_elbow_link"][1] == pytest.approx(12)
+        assert stage2[f"{side}_wrist_x_link"][1] == pytest.approx(10)
+
+
+def test_dr02_skeleton_uses_minimum_solver_iterations_for_large_motion():
+    settings = _load_config()["solver_settings"]
+
+    assert settings == {
+        "minimum_iterations": 10,
+        "maximum_iterations": 30,
+        "position_error_threshold": pytest.approx(0.01),
+    }
 
 
 DATA_ROOT = Path(__file__).resolve().parents[2] / "data" / "LAFAN1"

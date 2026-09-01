@@ -2,6 +2,7 @@ import pathlib
 
 HERE = pathlib.Path(__file__).parent
 IK_CONFIG_ROOT = HERE / "ik_configs"
+SKELETON_CONFIG_ROOT = HERE / "skeleton_configs"
 ASSET_ROOT = HERE / ".." / "assets"
 
 ROBOT_XML_DICT = {
@@ -23,7 +24,7 @@ ROBOT_XML_DICT = {
     "tienkung": ASSET_ROOT / "tienkung" / "mjcf" / "tienkung.xml",
     "pal_talos": ASSET_ROOT / "pal_talos" / "talos.xml",
     "fourier_gr3": ASSET_ROOT / "fourier_gr3v2_1_1" / "mjcf" / "gr3v2_1_1_dummy_hand.xml",
-    "dr02": ASSET_ROOT / "robots" / "dr02" / "mjcf" / "dr02_pos.xml",
+    "dr02": ASSET_ROOT /  "dr02" / "mjcf" / "dr02_pos.xml",
 }
 
 IK_CONFIG_DICT = {
@@ -56,6 +57,7 @@ IK_CONFIG_DICT = {
         "stanford_toddy": IK_CONFIG_ROOT / "bvh_lafan1_to_toddy.json",
         "engineai_pm01": IK_CONFIG_ROOT / "bvh_lafan1_to_pm01.json",
         "pal_talos": IK_CONFIG_ROOT / "bvh_to_talos.json",
+        "dr02": IK_CONFIG_ROOT / "bvh_lafan1_to_dr02.json",
     },
     "bvh_nokov":{
         "unitree_g1": IK_CONFIG_ROOT / "bvh_nokov_to_g1.json",
@@ -77,6 +79,12 @@ IK_CONFIG_DICT = {
     },
     "xsens_mvn": {
         "unitree_g1": IK_CONFIG_ROOT / "xsens_mvn_to_g1.json",
+    },
+}
+
+SKELETON_CONFIG_DICT = {
+    "bvh_lafan1": {
+        "dr02": SKELETON_CONFIG_ROOT / "bvh_lafan1_to_dr02.json",
     },
 }
 

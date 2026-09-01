@@ -1,0 +1,613 @@
+{
+  "robot_root_name": "base_link",
+  "human_root_name": "Hips",
+  "ground_height": 0,
+  "human_height_assumption": 1.75,
+  "initialize_root_from_human": true,
+  "initialization_retargets": 5,
+  "use_ik_match_table1": true,
+  "use_ik_match_table2": true,
+  "human_scale_table": {
+    "Hips": 1,
+    "Spine2": 1,
+    "LeftUpLeg": 1,
+    "RightUpLeg": 1,
+    "LeftLeg": 1,
+    "RightLeg": 1,
+    "LeftFoot": 1,
+    "RightFoot": 1,
+    "LeftToe": 1,
+    "RightToe": 1,
+    "LeftArm": 1,
+    "RightArm": 1,
+    "LeftForeArm": 1,
+    "RightForeArm": 1,
+    "LeftHand": 1,
+    "RightHand": 1
+  },
+  "ik_match_table1": {
+    "base_link": [
+      "Hips",
+      100,
+      10,
+      [
+        0,
+        0,
+        0
+      ],
+      [
+        -0.50507655,
+        -0.48908764,
+        -0.51412451,
+        -0.49129111
+      ]
+    ],
+    "body": [
+      "Spine2",
+      20,
+      5,
+      [
+        0,
+        0,
+        0
+      ],
+      [
+        -0.54817891,
+        -0.50560368,
+        -0.48555315,
+        -0.45618302
+      ]
+    ],
+    "left_knee_link": [
+      "LeftLeg",
+      0,
+      10,
+      [
+        0,
+        0,
+        0
+      ],
+      [
+        -0.47021598,
+        0.42838321,
+        0.58706571,
+        -0.50073806
+      ]
+    ],
+    "right_knee_link": [
+      "RightLeg",
+      0,
+      10,
+      [
+        0,
+        0,
+        0
+      ],
+      [
+        0.40572262,
+        -0.48532296,
+        -0.51699075,
+        0.57668998
+      ]
+    ],
+    "left_toe_link": [
+      "LeftToe",
+      100,
+      3,
+      [
+        0,
+        0,
+        0
+      ],
+      [
+        -0.70347421,
+        0.70360722,
+        -0.02204635,
+        0.09785128
+      ]
+    ],
+    "right_toe_link": [
+      "RightToe",
+      100,
+      3,
+      [
+        0,
+        0,
+        0
+      ],
+      [
+        0.64288799,
+        -0.75487864,
+        0.12880624,
+        0.01619306
+      ]
+    ],
+    "left_hip_y_link": [
+      "LeftUpLeg",
+      3,
+      10,
+      [
+        0,
+        0,
+        0
+      ],
+      [
+        -0.54733354,
+        0.49360858,
+        0.52955783,
+        -0.4199346
+      ]
+    ],
+    "right_hip_y_link": [
+      "RightUpLeg",
+      3,
+      10,
+      [
+        0,
+        0,
+        0
+      ],
+      [
+        0.51918567,
+        -0.50601711,
+        -0.47111733,
+        0.50243546
+      ]
+    ],
+    "left_ankle_x_link": [
+      "LeftFoot",
+      0,
+      1,
+      [
+        0,
+        0,
+        0
+      ],
+      [
+        -0.69716202,
+        0.68258458,
+        0.18680835,
+        -0.11465621
+      ]
+    ],
+    "right_ankle_x_link": [
+      "RightFoot",
+      0,
+      1,
+      [
+        0,
+        0,
+        0
+      ],
+      [
+        0.66289324,
+        -0.71278724,
+        -0.06919301,
+        0.21844732
+      ]
+    ],
+    "left_elbow_link": [
+      "LeftForeArm",
+      3,
+      0,
+      [
+        0,
+        0,
+        0
+      ],
+      [
+        -0.5,
+        0.5,
+        0.5,
+        -0.5
+      ]
+    ],
+    "right_elbow_link": [
+      "RightForeArm",
+      3,
+      0,
+      [
+        0,
+        0,
+        0
+      ],
+      [
+        -0.5,
+        0.5,
+        0.5,
+        -0.5
+      ]
+    ]
+  },
+  "ik_match_table2": {
+    "base_link": [
+      "Hips",
+      100,
+      5,
+      [
+        0,
+        0,
+        0
+      ],
+      [
+        -0.50507655,
+        -0.48908764,
+        -0.51412451,
+        -0.49129111
+      ]
+    ],
+    "body": [
+      "Spine2",
+      20,
+      0,
+      [
+        0,
+        0,
+        0
+      ],
+      [
+        -0.54817891,
+        -0.50560368,
+        -0.48555315,
+        -0.45618302
+      ]
+    ],
+    "left_shoulder_y_link": [
+      "LeftArm",
+      20,
+      0,
+      [
+        0,
+        0,
+        0
+      ],
+      [
+        -0.5,
+        0.5,
+        0.5,
+        -0.5
+      ]
+    ],
+    "right_shoulder_y_link": [
+      "RightArm",
+      20,
+      0,
+      [
+        0,
+        0,
+        0
+      ],
+      [
+        -0.5,
+        0.5,
+        0.5,
+        -0.5
+      ]
+    ],
+    "left_elbow_link": [
+      "LeftForeArm",
+      5,
+      0.1,
+      [
+        0,
+        0,
+        0
+      ],
+      [
+        -0.5,
+        0.5,
+        0.5,
+        -0.5
+      ]
+    ],
+    "right_elbow_link": [
+      "RightForeArm",
+      5,
+      0.1,
+      [
+        0,
+        0,
+        0
+      ],
+      [
+        -0.5,
+        0.5,
+        0.5,
+        -0.5
+      ]
+    ],
+    "left_wrist_x_link": [
+      "LeftHand",
+      15,
+      0.01,
+      [
+        0,
+        0,
+        0
+      ],
+      [
+        0.5,
+        0.5,
+        -0.5,
+        -0.5
+      ]
+    ],
+    "right_wrist_x_link": [
+      "RightHand",
+      15,
+      0.01,
+      [
+        0,
+        0,
+        0
+      ],
+      [
+        0.5,
+        0.5,
+        -0.5,
+        -0.5
+      ]
+    ],
+    "left_hip_y_link": [
+      "LeftUpLeg",
+      10,
+      5,
+      [
+        0,
+        0,
+        0
+      ],
+      [
+        -0.54733354,
+        0.49360858,
+        0.52955783,
+        -0.4199346
+      ]
+    ],
+    "left_knee_link": [
+      "LeftLeg",
+      30,
+      5,
+      [
+        0,
+        0,
+        0
+      ],
+      [
+        -0.47021598,
+        0.42838321,
+        0.58706571,
+        -0.50073806
+      ]
+    ],
+    "left_toe_link": [
+      "LeftToe",
+      100,
+      5,
+      [
+        0,
+        0,
+        0
+      ],
+      [
+        -0.70631856,
+        0.70542693,
+        0.05651035,
+        0.01713237
+      ]
+    ],
+    "right_hip_y_link": [
+      "RightUpLeg",
+      10,
+      5,
+      [
+        0,
+        0,
+        0
+      ],
+      [
+        0.51918567,
+        -0.50601711,
+        -0.47111733,
+        0.50243546
+      ]
+    ],
+    "right_knee_link": [
+      "RightLeg",
+      30,
+      5,
+      [
+        0,
+        0,
+        0
+      ],
+      [
+        0.40572262,
+        -0.48532296,
+        -0.51699075,
+        0.57668998
+      ]
+    ],
+    "right_toe_link": [
+      "RightToe",
+      100,
+      5,
+      [
+        0,
+        0,
+        0
+      ],
+      [
+        0.69196762,
+        -0.71320742,
+        0.06470916,
+        0.09126184
+      ]
+    ],
+    "left_ankle_x_link": [
+      "LeftFoot",
+      10,
+      1,
+      [
+        0,
+        0,
+        0
+      ],
+      [
+        -0.69716202,
+        0.68258458,
+        0.18680835,
+        -0.11465621
+      ]
+    ],
+    "right_ankle_x_link": [
+      "RightFoot",
+      10,
+      1,
+      [
+        0,
+        0,
+        0
+      ],
+      [
+        0.66289324,
+        -0.71278724,
+        -0.06919301,
+        0.21844732
+      ]
+    ]
+  },
+  "algorithm": "skeleton",
+  "skeleton_chains": [
+    {
+      "name": "spine",
+      "segments": [
+        {
+          "human_parent": "Hips",
+          "human_child": "Spine2",
+          "robot_parent_frame": "base_link",
+          "robot_child_frame": "body",
+          "target_length": 0.29
+        }
+      ]
+    },
+    {
+      "name": "left_arm",
+      "segments": [
+        {
+          "human_parent": "Spine2",
+          "human_child": "LeftArm",
+          "robot_parent_frame": "body",
+          "robot_child_frame": "left_shoulder_y_link",
+          "target_length": 0.3246858828159918
+        },
+        {
+          "human_parent": "LeftArm",
+          "human_child": "LeftForeArm",
+          "robot_parent_frame": "left_shoulder_y_link",
+          "robot_child_frame": "left_elbow_link",
+          "target_length": 0.265
+        },
+        {
+          "human_parent": "LeftForeArm",
+          "human_child": "LeftHand",
+          "robot_parent_frame": "left_elbow_link",
+          "robot_child_frame": "left_wrist_x_link",
+          "target_length": 0.2395
+        }
+      ]
+    },
+    {
+      "name": "right_arm",
+      "segments": [
+        {
+          "human_parent": "Spine2",
+          "human_child": "RightArm",
+          "robot_parent_frame": "body",
+          "robot_child_frame": "right_shoulder_y_link",
+          "target_length": 0.3246858828159918
+        },
+        {
+          "human_parent": "RightArm",
+          "human_child": "RightForeArm",
+          "robot_parent_frame": "right_shoulder_y_link",
+          "robot_child_frame": "right_elbow_link",
+          "target_length": 0.265
+        },
+        {
+          "human_parent": "RightForeArm",
+          "human_child": "RightHand",
+          "robot_parent_frame": "right_elbow_link",
+          "robot_child_frame": "right_wrist_x_link",
+          "target_length": 0.2395
+        }
+      ]
+    },
+    {
+      "name": "left_leg",
+      "segments": [
+        {
+          "human_parent": "Hips",
+          "human_child": "LeftUpLeg",
+          "robot_parent_frame": "base_link",
+          "robot_child_frame": "left_hip_y_link",
+          "target_length": 0.1614
+        },
+        {
+          "human_parent": "LeftUpLeg",
+          "human_child": "LeftLeg",
+          "robot_parent_frame": "left_hip_y_link",
+          "robot_child_frame": "left_knee_link",
+          "target_length": 0.4194
+        },
+        {
+          "human_parent": "LeftLeg",
+          "human_child": "LeftFoot",
+          "robot_parent_frame": "left_knee_link",
+          "robot_child_frame": "left_ankle_x_link",
+          "target_length": 0.41
+        },
+        {
+          "human_parent": "LeftFoot",
+          "human_child": "LeftToe",
+          "robot_parent_frame": "left_ankle_x_link",
+          "robot_child_frame": "left_toe_link",
+          "target_length": 0.1110180165558726
+        }
+      ]
+    },
+    {
+      "name": "right_leg",
+      "segments": [
+        {
+          "human_parent": "Hips",
+          "human_child": "RightUpLeg",
+          "robot_parent_frame": "base_link",
+          "robot_child_frame": "right_hip_y_link",
+          "target_length": 0.1614
+        },
+        {
+          "human_parent": "RightUpLeg",
+          "human_child": "RightLeg",
+          "robot_parent_frame": "right_hip_y_link",
+          "robot_child_frame": "right_knee_link",
+          "target_length": 0.4194
+        },
+        {
+          "human_parent": "RightLeg",
+          "human_child": "RightFoot",
+          "robot_parent_frame": "right_knee_link",
+          "robot_child_frame": "right_ankle_x_link",
+          "target_length": 0.41
+        },
+        {
+          "human_parent": "RightFoot",
+          "human_child": "RightToe",
+          "robot_parent_frame": "right_ankle_x_link",
+          "robot_child_frame": "right_toe_link",
+          "target_length": 0.1110180165558726
+        }
+      ]
+    }
+  ]
+}

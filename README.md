@@ -602,6 +602,31 @@ For a skeleton-retargeted LAFAN1 export, add `--algorithm skeleton`. The viewer
 then infers the DR02 skeleton config; legacy or standalone files can still pass
 `--reference`, `--mjcf`, and `--ik-config` explicitly.
 
+### Split motions around unreachable frames
+
+Run the offline cleaner after retargeting to remove frames with excessive
+position-target error. Invalid gaps are never bridged: valid frames before and
+after each gap are exported as separate PKL clips.
+
+```bash
+PYTHONPATH=. .venv/bin/python scripts/clean_retarget_motion.py \
+  --motion <retargeted_motion.pkl> \
+  --reference <source_lafan1.bvh> \
+  --mjcf assets/dr02/mjcf/dr02_pos.xml \
+  --ik-config general_motion_retargeting/skeleton_configs/bvh_lafan1_to_dr02.json \
+  --algorithm skeleton \
+  --max-position-error 0.10 \
+  --minimum-segment-frames 30 \
+  --output-dir <new_empty_output_directory>
+```
+
+The threshold is in meters and is applied to the largest active position-task
+error in each frame. `--padding-frames` can additionally remove neighboring
+frames around every failure. The output directory contains numbered motion
+parts and a JSON report with original frame ranges, the triggering targets,
+threshold failures, and frames discarded because a surviving fragment was too
+short. Existing outputs are never overwritten.
+
 `smplx_to_robot.py --save` updates `retarget_data/<robot>/manifest.json`
 automatically. The debug viewer uses that manifest to find the source motion and
 infer the robot MJCF and SMPL-X IK config. `--reference`, `--mjcf`, and
